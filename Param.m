@@ -22,6 +22,7 @@ classdef Param < handle
             self.isEstimated = false;
         end
 
+
         % Setters ==================================================================================
         function set.value(self, value)
             self.value = Validator.validateType(value, "double");

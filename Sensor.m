@@ -16,26 +16,29 @@ classdef Sensor < handle
         nextSampleTime
     end
     
-    % TODO: Find out why this doesn't work
-    % properties (Abstract)
-    %     N_MEASUREMENTS
-    % end
+    properties (Abstract, Constant)
+        N_MEASUREMENTS
+    end
 
     methods
         % Constructor ==============================================================================
         function self = Sensor()
-            self.samplePeriod = 0;
+            self.samplePeriod = 0;   % (s)
             
-            self.sampleTime = -999;  % Not initialized to 0 to allow for a measurement at time = 0
-            self.sampledMeasurement = 0;
+            self.sampleTime = -999;  % (s) Not initialized to 0 to allow for a measurement at time = 0
+            self.sampledMeasurement = zeros(self.N_MEASUREMENTS, 1);
 
-            self.noiseCovar = 0;
+            self.noiseCovar = zeros(self.N_MEASUREMENTS);
         end
+
 
         % Methods ==================================================================================
         function shouldSample = checkIfShouldSample(self, time)
+            % Determines whether sensor is ready to take a new measurement
+            
             shouldSample = (time >= (self.nextSampleTime - Constants.TIME_TOLERANCE));  % See Constants:Note 1
         end
+
 
         % Getters ==================================================================================
         function invNoiseCovar = get.invNoiseCovar(self)
@@ -46,12 +49,12 @@ classdef Sensor < handle
             nextSampleTime = self.sampleTime + self.samplePeriod;
         end
 
+        
         % Setters ==================================================================================
         % TODO params
     end
 
     methods (Abstract)
-        % Methods ==================================================================================
         sampleMeasurement(self, time, state)
     end
 end

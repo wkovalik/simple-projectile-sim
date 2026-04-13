@@ -18,7 +18,6 @@ classdef SensorModel < handle
         N_ESTIMATED_PARAMS
     end
 
-    % TODO: Try to get this to work. Once it does, move computeParamJacobian() over to here
     properties (Abstract, Constant)
         N_MEASUREMENTS
     end
@@ -26,19 +25,23 @@ classdef SensorModel < handle
     methods
         % Constructor ==============================================================================
         function self = SensorModel()
-            self.noiseCovar = 0;
-
+            self.noiseCovar = zeros(self.N_MEASUREMENTS);
+            
+            % Initialize list of parameters to be estimated (used to compute parameter Jacobian)
             self.estimatedParams = [];
         end
+
 
         % Methods ==================================================================================
         function H = computeParamJacobian(self, state)
             H = zeros(self.N_MEASUREMENTS, self.N_ESTIMATED_PARAMS);
-
+            
+            % Build Jacobian using individual Jacobians corresponding to each estimated parameter
             for i = 1:self.N_ESTIMATED_PARAMS
                 H(:, i) = self.estimatedParamJacobianMap{i}(self, state);  % See Note 1
             end
         end
+
 
         % Getters ==================================================================================
         function invNoiseCovar = get.invNoiseCovar(self)
@@ -53,6 +56,7 @@ classdef SensorModel < handle
             N_ESTIMATED_PARAMS = length(self.estimatedParams);
         end
 
+
         % Setters ==================================================================================
         % TODO: set.params validation
 
@@ -60,11 +64,16 @@ classdef SensorModel < handle
             if ~isempty(estimatedParams)
                 self.estimatedParams = Validator.validateType(estimatedParams, "string");
             end
-
-            self.updateEstimatedParamJacobianMap();
+            
+            % Rebuild dictionary of Jacobian compute function handles
+            self.buildEstimatedParamJacobianMap();
         end
 
-        function updateEstimatedParamJacobianMap(self)
+        function buildEstimatedParamJacobianMap(self)
+            % Builds dictionary of Jacobian compute function handles, which maps each estimated
+            % parameter to its corresponding Jacobian compute function
+            % Example: { "CD" -> @self.computeDragJacobian, "vWindx" -> @self.computeWindJacobian }
+
             self.estimatedParamJacobianMap = {};
 
             if ~isempty(self.estimatedParams)
@@ -78,7 +87,6 @@ classdef SensorModel < handle
     end
 
     methods (Abstract)
-        % Methods ==================================================================================
         y = computeMeasurement(self, state)      
         H = computeStateJacobian(self, state)
     end

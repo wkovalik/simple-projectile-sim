@@ -15,52 +15,67 @@ classdef ProjectileDynamics < handle
     methods
         % Constructor ==============================================================================
         function self = ProjectileDynamics(projectile, earth)
+            % Set handles for projectile and planet
             self.projectile = projectile;
             self.earth = earth;
-
+            
+            % Initialize list of parameters to be estimated (used to compute parameter Jacobian)
             self.estimatedParams = [];
         end
 
+
         % Force model methods ======================================================================
         function [Fx, Fy, Fz] = projectileGravModel(self)
+            % Get projectile parameters
             m = self.projectile.params.m.value;
-
+            
+            % Get planet parameters
             g = self.earth.params.g.value;
             
+            % Compute force vector components
             Fx = 0;
             Fy = 0;
             Fz = m * g;
         end
 
-        function [Fx, Fy, Fz] = projectileAeroModel(self, state)          
+        function [Fx, Fy, Fz] = projectileAeroModel(self, state)
+            % Get projectile state
             vx = state(4);
             vy = state(5);
             vz = state(6);
             
+            % Get projectile parameters
             S = self.projectile.params.S.value;
             CD = self.projectile.params.CD.value;
-
+            
+            % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             
+            % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
             vInfy = vy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
+            % Compute force vector components
             Fx = -(rho * S * CD / 2) * VInf * vInfx;
             Fy = -(rho * S * CD / 2) * VInf * vInfy;
             Fz = -(rho * S * CD / 2) * VInf * vInfz;
         end
         
+
         % Derivative methods =======================================================================
         function stateDeriv = computeStateDeriv(self, state)
+            % Get projectile state
             vx = state(4);
             vy = state(5);
             vz = state(6);
             
+            % Get projectile parameters
             m = self.projectile.params.m.value;
             
+            % Compute forces
             [FGravx, FGravy, FGravz] = self.projectileGravModel();
             [FAerox, FAeroy, FAeroz] = self.projectileAeroModel(state);
             
@@ -68,6 +83,7 @@ classdef ProjectileDynamics < handle
             Fy = FGravy + FAeroy;
             Fz = FGravz + FAeroz;
             
+            % Compute state derivatives
             xDeriv = vx;
             yDeriv = vy;
             zDeriv = vz;
@@ -79,19 +95,39 @@ classdef ProjectileDynamics < handle
         end
         
         function [stateSTMDeriv, paramSTMDeriv] = computeSTMDeriv(self, state, stateSTM, paramSTM)
+            % Note: stateSTM = d(projectile states)/d(initial projectile states)
+            %       paramSTM = d(projectile states)/d(estimated parameters)
+            %
+            %       stateA = d(projectile state derivatives)/d(projectile states)
+            %       paramA = d(projectile state derivatives)/d(estimated parameters)
+            
+            % Compute state STM derivative ---------------------------------------------------------
+
+            % Unvectorize STM
             stateSTM = reshape(stateSTM, [self.N_PROJECTILE_STATES, self.N_PROJECTILE_STATES]);
-
+            
+            % Compute dynamics Jacobian
             stateA = self.computeStateJacobian(state);
-
+            
+            % Compute STM derivative
             stateSTMDeriv = stateA * stateSTM;
+
+            % Revectorize STM
             stateSTMDeriv = stateSTMDeriv(:);
+            
+            % Compute parameter STM derivative -----------------------------------------------------
 
             if ~isempty(self.estimatedParams)
+                % Unvectorize STM
                 paramSTM = reshape(paramSTM, [self.N_PROJECTILE_STATES, self.N_ESTIMATED_PARAMS]);
                 
+                % Compute dynamics Jacobian
                 paramA = self.computeParamJacobian(state);
-    
+                
+                % Compute STM derivative
                 paramSTMDeriv = stateA * paramSTM + paramA;
+
+                % Revectorize STM
                 paramSTMDeriv = paramSTMDeriv(:);
 
             else
@@ -101,6 +137,7 @@ classdef ProjectileDynamics < handle
         end
 
         function augStateDeriv = computeStateAndSTMDeriv(self, augState)
+            % Deconcatenate augmented state
             state = augState(1:self.N_PROJECTILE_STATES);
             stateSTM = augState(self.N_PROJECTILE_STATES + (1:self.N_PROJECTILE_STATES ^ 2));
             if ~isempty(self.estimatedParams)
@@ -108,43 +145,56 @@ classdef ProjectileDynamics < handle
             else
                 paramSTM = [];
             end
-
+            
+            % Compute projectile state derivative
             stateDeriv = self.computeStateDeriv(state);
-            [stateSTMDeriv, paramSTMDeriv] = self.computeSTMDeriv(state, stateSTM, paramSTM);
 
+            % Compute vectorized STM derivatives
+            [stateSTMDeriv, paramSTMDeriv] = self.computeSTMDeriv(state, stateSTM, paramSTM);
+            
+            % Reconcatenate into augmented state
             augStateDeriv = [stateDeriv; stateSTMDeriv; paramSTMDeriv];
         end
         
+
         % Jacobian methods =========================================================================
         function A = computeStateJacobian(self, state)
+            % Get projectile states
             vx = state(4);
             vy = state(5);
             vz = state(6);
-
+            
+            % Get projectile parameters
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
             CD = self.projectile.params.CD.value;
-
+            
+            % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
-
+            
+            % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
             vInfy = vy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
-
+            
+            % Build Jacobian -----------------------------------------------------------------------
             A = zeros(self.N_PROJECTILE_STATES);
-
+            
+            % Partial derivatives w.r.t. vx
             A(1, 4) = 1;
             A(4, 4) = -(rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
             A(5, 4) = -(rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
             A(6, 4) = -(rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
-
+            
+            % Partial derivatives w.r.t. vy
             A(2, 5) = 1;
             A(4, 5) = -(rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
             A(5, 5) = -(rho * S * CD / (2 * m)) * (vInfy ^ 2 / VInf + VInf);
             A(6, 5) = -(rho * S * CD / (2 * m)) * (vInfy * vInfz / VInf);
-
+            
+            % Partial derivatives w.r.t. vz
             A(3, 6) = 1;
             A(4, 6) = -(rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
             A(5, 6) = -(rho * S * CD / (2 * m)) * (vInfy * vInfz / VInf);
@@ -153,58 +203,72 @@ classdef ProjectileDynamics < handle
 
         function A = computeParamJacobian(self, state)
             A = zeros(self.N_PROJECTILE_STATES, self.N_ESTIMATED_PARAMS);
-
+            
+            % Build Jacobian using individual Jacobians corresponding to each estimated parameter
             for i = 1:self.N_ESTIMATED_PARAMS
                 A(:, i) = self.estimatedParamJacobianMap{i}(self, state);  % See Note 1
             end
         end
 
         function A = computeDragJacobian(self, state)
+            % Get projectile state
             vx = state(4);
             vy = state(5);
             vz = state(6);
             
+            % Get projectile parameters
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
-
+            
+            % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             
+            % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
             vInfy = vy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
+            % Build Jacobian -----------------------------------------------------------------------
             A = zeros(self.N_PROJECTILE_STATES, 1);
             
+            % Partial derivatives w.r.t. CD
             A(4, 1) = -(rho * S / (2 * m)) * VInf * vInfx;
             A(5, 1) = -(rho * S / (2 * m)) * VInf * vInfy;
             A(6, 1) = -(rho * S / (2 * m)) * VInf * vInfz;
         end
             
         function A = computeWindJacobian(self, state)
+            % Get projectile state
             vx = state(4);
             vy = state(5);
             vz = state(6);
             
+            % Get projectile parameters
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
             CD = self.projectile.params.CD.value;
-
+            
+            % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             
+            % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
             vInfy = vy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
+            % Build Jacobian -----------------------------------------------------------------------
             A = zeros(self.N_PROJECTILE_STATES, 1);
             
+            % Partial derivatives w.r.t. vWindx
             A(4, 1) = (rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
             A(5, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
             A(6, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
         end
+
 
         % Getters ==================================================================================
         function N_PROJECTILE_STATES = get.N_PROJECTILE_STATES(self)
@@ -215,6 +279,7 @@ classdef ProjectileDynamics < handle
             N_ESTIMATED_PARAMS = length(self.estimatedParams);
         end
         
+
         % Setters ==================================================================================
         function set.projectile(self, projectile)
             self.projectile = Validator.validateType(projectile, "Projectile");
@@ -228,11 +293,16 @@ classdef ProjectileDynamics < handle
             if ~isempty(estimatedParams)
                 self.estimatedParams = Validator.validateType(estimatedParams, "string");
             end
-
-            self.updateEstimatedParamJacobianMap();
+            
+            % Rebuild dictionary of Jacobian compute function handles
+            self.buildEstimatedParamJacobianMap();
         end
 
-        function updateEstimatedParamJacobianMap(self)
+        function buildEstimatedParamJacobianMap(self)
+            % Builds dictionary of Jacobian compute function handles, which maps each estimated
+            % parameter to its corresponding Jacobian compute function
+            % Example: { "CD" -> @self.computeDragJacobian, "vWindx" -> @self.computeWindJacobian }
+
             self.estimatedParamJacobianMap = {};
 
             if ~isempty(self.estimatedParams)

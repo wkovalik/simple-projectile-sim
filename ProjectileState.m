@@ -5,12 +5,12 @@ classdef ProjectileState < handle
     end
 
     properties (Dependent)
-        x
-        y
-        z
-        vx
-        vy
-        vz
+        x   % Position x-component (m)
+        y   % Position y-component (m)
+        z   % Position z-component (m)
+        vx  % Velocity x-component (m/s)
+        vy  % Velocity y-component (m/s)
+        vz  % Velocity z-component (m/s)
 
         invCovar
     end

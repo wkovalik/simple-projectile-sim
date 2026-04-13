@@ -9,12 +9,12 @@ classdef Projectile < handle
     methods
         % Constructor ==============================================================================
         function self = Projectile()            
-            self.time = 0;
+            self.time = 0;  % (s)
             self.state = ProjectileState();
 
-            self.params.m = Param();
-            self.params.S = Param();
-            self.params.CD = Param();
+            self.params.m = Param();   % Mass             (kg)
+            self.params.S = Param();   % Reference area   (m^2)
+            self.params.CD = Param();  % Drag coefficient
         end
 
         % Methods ==================================================================================
