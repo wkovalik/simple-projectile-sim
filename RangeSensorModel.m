@@ -74,10 +74,17 @@ classdef RangeSensorModel < SensorModel
             H = 0;
         end
 
-        function H = computeWindJacobian(~, ~)
+        function H = computeWindxJacobian(~, ~)
             % Build Jacobian -----------------------------------------------------------------------
             
             % Partial derivatives w.r.t. vWindx
+            H = 0;
+        end
+
+        function H = computeWindyJacobian(~, ~)
+            % Build Jacobian -----------------------------------------------------------------------
+            
+            % Partial derivatives w.r.t. vWindy
             H = 0;
         end
     end

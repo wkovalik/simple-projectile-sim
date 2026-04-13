@@ -29,6 +29,7 @@ truthEarth = Earth();
 
 % Define planet parameters
 truthEarth.params.vWindx.value = -5;  % (m/s)
+truthEarth.params.vWindy.value = 10;  % (m/s)
 
 % Create truth projectile dynamics -----------------------------------------------------------------
 truthProjectileDynamics = ProjectileDynamics(truthProjectile, truthEarth);
@@ -77,7 +78,7 @@ truthPropagator.selectPropagator("stateWithSensors");  % Option to take sensor m
 % Propagate truth trajectory -----------------------------------------------------------------------
 truthPropagator.propagate(finalSimTime);
 
-sensorSampleRecord = truthPropagator.sensorSampleRecord;  % Contains sensor measurement histories
+sensorSampleHistory = truthPropagator.sensorSampleHistory;  % Contains sensor measurement histories
 
 
 % ==================================================================================================
@@ -103,7 +104,9 @@ earthModel = Earth();
 
 % Define planet parameters and covariance (only required for estimated parameters)
 earthModel.params.vWindx.value = 0;       % (m/s)
+earthModel.params.vWindy.value = 0;       % (m/s)
 earthModel.params.vWindx.covar = 25 ^ 2;  % (m/s)^2
+earthModel.params.vWindy.covar = 25 ^ 2;  % (m/s)^2
 
 % Create projectile model dynamics -----------------------------------------------------------------
 projectileModelDynamics = ProjectileDynamics(projectileModel, earthModel);
@@ -137,12 +140,13 @@ directionSensorModel.noiseCovar = diag(deg2rad([0.1; 0.1]) .^ 2);  % (rad; rad)^
 % Set parameters to be estimated -------------------------------------------------------------------
 projectileModel.params.CD.isEstimated = true;
 earthModel.params.vWindx.isEstimated = true;
+earthModel.params.vWindy.isEstimated = true;
 
 % Create batch estimator ---------------------------------------------------------------------------
 estimator = BatchEstimator(projectileModelDynamics, integrator, { rangeSensorModel, directionSensorModel });
 
 % Run batch algorithm ------------------------------------------------------------------------------
-estimator.solve(estimateTime, sensorSampleRecord);
+estimator.solve(estimateTime, sensorSampleHistory);
 
 
 % ==================================================================================================
@@ -152,17 +156,17 @@ estimator.solve(estimateTime, sensorSampleRecord);
 % Plot sensor measurements -------------------------------------------------------------------------
 
 % Get range sensor measurement history
-rangeSensorSampleRecord = sensorSampleRecord(rangeSensor.sensorID);
+rangeSensorSampleHistory = sensorSampleHistory(rangeSensor.sensorID);
 
-rangeSampleTimeHistory = rangeSensorSampleRecord.timeHistory;
-rangeSampleHistory = rangeSensorSampleRecord.sampleHistory;
+rangeSampleTimeHistory = rangeSensorSampleHistory.timeHistory;
+rangeSampleHistory = rangeSensorSampleHistory.sampleHistory;
 
 % Get direction sensor measurement history
-directionSensorSampleRecord = sensorSampleRecord(directionSensor.sensorID);
+directionSensorSampleHistory = sensorSampleHistory(directionSensor.sensorID);
 
-directionSampleTimeHistory = directionSensorSampleRecord.timeHistory;
-azimuthSampleHistory = directionSensorSampleRecord.sampleHistory(1, :);
-elevationSampleHistory = directionSensorSampleRecord.sampleHistory(2, :);
+directionSampleTimeHistory = directionSensorSampleHistory.timeHistory;
+azimuthSampleHistory = directionSensorSampleHistory.sampleHistory(1, :);
+elevationSampleHistory = directionSensorSampleHistory.sampleHistory(2, :);
 
 % Plot
 figure(1)
@@ -190,10 +194,11 @@ sgtitle("Sensor Measurements")
 nPlotPts = 250;
 [~, truthStatePlotHistory] = truthPropagator.generateStateHistory(initSimTime, finalSimTime, nPlotPts);
 
-% Get state history for estimated trajectories (for each iteration of estimator)
+% Get state history for estimated trajectories (after each iteration of estimator)
 estimatedStatePlotPts = cell(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);
+
 for ii = 1:(Constants.MAX_ESTIMATOR_ITERATIONS + 1)
-    estimator.propagator.stateInterpolant = estimator.stateInterpolantList{ii};
+    estimator.propagator.stateInterpolant = estimator.stateInterpolantHistory{ii};
     [~, estimatedStatePlotPts{ii}] = estimator.propagator.generateStateHistory(initSimTime, finalSimTime, nPlotPts);
 end
 
@@ -219,15 +224,16 @@ legend(["True", "Fit"], "Location", "best")
 
 sgtitle("Projectile Trajectory")
 
-% Plot estimator convergence -----------------------------------------------------------------------
+% Plot projectile velocity estimate convergence ----------------------------------------------------
 
 % Get truth state
 truthState = truthPropagator.getState(estimateTime);
 
-% Get estimated states (for each iteration of estimator)
+% Get estimated states (after each iteration of estimator)
 estimatedStateHistory = zeros(projectileModel.state.N_STATES, Constants.MAX_ESTIMATOR_ITERATIONS + 1);
+
 for ii = 1:(Constants.MAX_ESTIMATOR_ITERATIONS + 1)
-    estimator.propagator.stateInterpolant = estimator.stateInterpolantList{ii};
+    estimator.propagator.stateInterpolant = estimator.stateInterpolantHistory{ii};
     estimatedInitState = estimator.propagator.getState(estimateTime);
 
     estimatedStateHistory(:, ii) = estimatedInitState;
@@ -241,6 +247,7 @@ plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedStateHistory(4, :), 'rx-', "
 hold on
 plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthState(4) * [1, 1], 'k', "LineWidth", 0.5)
 hold off
+xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
 xlabel("Iterations")
 ylabel("v_x (m/s)")
 legend(["Estimate", "Truth"])
@@ -250,6 +257,7 @@ plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedStateHistory(5, :), 'rx-', "
 hold on
 plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthState(5) * [1, 1], 'k', "LineWidth", 0.5)
 hold off
+xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
 xlabel("Iterations")
 ylabel("v_y (m/s)")
 legend(["Estimate", "Truth"])
@@ -259,40 +267,87 @@ plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedStateHistory(6, :), 'rx-', "
 hold on
 plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthState(6) * [1, 1], 'k', "LineWidth", 0.5)
 hold off
+xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
 xlabel("Iterations")
 ylabel("v_z (m/s)")
 legend(["Estimate", "Truth"])
 
-sgtitle("Velocity Convergence")
+sgtitle("Projectile Velocity Convergence")
+
+% Plot parameter estimate convergence --------------------------------------------------------------
+
+% Get estimated parameters (after each iteration of estimator)
+estimatedCDHistory = zeros(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);
+estimatedWindHistory = zeros(2, Constants.MAX_ESTIMATOR_ITERATIONS + 1);
+
+for ii = 1:(Constants.MAX_ESTIMATOR_ITERATIONS + 1)
+    estimatedCDHistory(ii) = estimator.estimatedParamHistory{ii}(1);
+    estimatedWindHistory(:, ii) = estimator.estimatedParamHistory{ii}(2:3);
+end
+
+% Plot
+figure(4)
+
+subplot(1, 3, 1)
+plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedCDHistory, 'rx-', "LineWidth", 1.5)
+hold on
+plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthProjectile.params.CD.value * [1, 1], 'k', "LineWidth", 0.5)
+hold off
+xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
+xlabel("Iterations")
+ylabel("C_D")
+legend(["Estimate", "Truth"])
+
+subplot(1, 3, 2)
+plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedWindHistory(1, :), 'rx-', "LineWidth", 1.5)
+hold on
+plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthEarth.params.vWindx.value * [1, 1], 'k', "LineWidth", 0.5)
+hold off
+xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
+xlabel("Iterations")
+ylabel("vWind_x (m/s)")
+legend(["Estimate", "Truth"])
+
+subplot(1, 3, 3)
+plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedWindHistory(2, :), 'rx-', "LineWidth", 1.5)
+hold on
+plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthEarth.params.vWindy.value * [1, 1], 'k', "LineWidth", 0.5)
+hold off
+xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
+xlabel("Iterations")
+ylabel("vWind_y (m/s)")
+legend(["Estimate", "Truth"])
+
+sgtitle("Parameter Convergence")
 
 % Plot measurment residuals ------------------------------------------------------------------------
 
 % Get prefit range residuals
-priorRangeResidualRecord = estimator.measurementResidualRecordList{1}(rangeSensorModel.sensorID);
+priorRangeResidualHistory = estimator.measurementResidualHistory{1}(rangeSensorModel.sensorID);
 
-rangeResidualTimeHistory = priorRangeResidualRecord.timeHistory;
-priorRangeResidualHistory = priorRangeResidualRecord.residualHistory;
+rangeResidualTimeHistory = priorRangeResidualHistory.timeHistory;
+priorRangeResidualHistory = priorRangeResidualHistory.residualHistory;
 
 % Get postfit range residuals
-postRangeResidualRecord = estimator.measurementResidualRecordList{end}(rangeSensorModel.sensorID);
+postRangeResidualHistory = estimator.measurementResidualHistory{end}(rangeSensorModel.sensorID);
 
-postRangeResidualHistory = postRangeResidualRecord.residualHistory;
+postRangeResidualHistory = postRangeResidualHistory.residualHistory;
 
 % Get prefit azimuth and elevation residuals
-priorDirectionResidualRecord = estimator.measurementResidualRecordList{1}(directionSensorModel.sensorID);
+priorDirectionResidualHistory = estimator.measurementResidualHistory{1}(directionSensorModel.sensorID);
 
-directionResidualTimeHistory = priorDirectionResidualRecord.timeHistory;
-priorAzimuthResidualHistory = priorDirectionResidualRecord.residualHistory(1, :);
-priorElevationResidualHistory = priorDirectionResidualRecord.residualHistory(2, :);
+directionResidualTimeHistory = priorDirectionResidualHistory.timeHistory;
+priorAzimuthResidualHistory = priorDirectionResidualHistory.residualHistory(1, :);
+priorElevationResidualHistory = priorDirectionResidualHistory.residualHistory(2, :);
 
 % Get postfit azimuth and elevation residuals
-postDirectionResidualRecord = estimator.measurementResidualRecordList{end}(directionSensorModel.sensorID);
+postDirectionResidualHistory = estimator.measurementResidualHistory{end}(directionSensorModel.sensorID);
 
-postAzimuthResidualHistory = postDirectionResidualRecord.residualHistory(1, :);
-postElevationResidualHistory = postDirectionResidualRecord.residualHistory(2, :);
+postAzimuthResidualHistory = postDirectionResidualHistory.residualHistory(1, :);
+postElevationResidualHistory = postDirectionResidualHistory.residualHistory(2, :);
 
 % Plot
-figure(4)
+figure(5)
 
 subplot(1, 3, 1)
 plot(rangeResidualTimeHistory, priorRangeResidualHistory, 'rx')

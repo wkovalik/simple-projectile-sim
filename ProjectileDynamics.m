@@ -51,10 +51,11 @@ classdef ProjectileDynamics < handle
             % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
+            vWindy = self.earth.params.vWindy.value;
             
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
-            vInfy = vy;
+            vInfy = vy - vWindy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
@@ -172,10 +173,11 @@ classdef ProjectileDynamics < handle
             % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
+            vWindy = self.earth.params.vWindy.value;
             
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
-            vInfy = vy;
+            vInfy = vy - vWindy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
@@ -223,10 +225,11 @@ classdef ProjectileDynamics < handle
             % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
+            vWindy = self.earth.params.vWindy.value;
             
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
-            vInfy = vy;
+            vInfy = vy - vWindy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
@@ -239,7 +242,7 @@ classdef ProjectileDynamics < handle
             A(6, 1) = -(rho * S / (2 * m)) * VInf * vInfz;
         end
             
-        function A = computeWindJacobian(self, state)
+        function A = computeWindxJacobian(self, state)
             % Get projectile state
             vx = state(4);
             vy = state(5);
@@ -253,10 +256,11 @@ classdef ProjectileDynamics < handle
             % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
+            vWindy = self.earth.params.vWindy.value;
             
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
-            vInfy = vy;
+            vInfy = vy - vWindy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
@@ -266,6 +270,37 @@ classdef ProjectileDynamics < handle
             % Partial derivatives w.r.t. vWindx
             A(4, 1) = (rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
             A(5, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
+            A(6, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
+        end
+
+        function A = computeWindyJacobian(self, state)
+            % Get projectile state
+            vx = state(4);
+            vy = state(5);
+            vz = state(6);
+            
+            % Get projectile parameters
+            m = self.projectile.params.m.value;
+            S = self.projectile.params.S.value;
+            CD = self.projectile.params.CD.value;
+            
+            % Get planet parameters
+            rho = self.earth.params.rho.value;
+            vWindx = self.earth.params.vWindx.value;
+            vWindy = self.earth.params.vWindy.value;
+            
+            % Compute atmosphere-relative velocities
+            vInfx = vx - vWindx;
+            vInfy = vy - vWindy;
+            vInfz = vz;
+            VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
+            
+            % Build Jacobian -----------------------------------------------------------------------
+            A = zeros(self.N_PROJECTILE_STATES, 1);
+            
+            % Partial derivatives w.r.t. vWindy
+            A(4, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
+            A(5, 1) = (rho * S * CD / (2 * m)) * (vInfy ^ 2 / VInf + VInf);
             A(6, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
         end
 

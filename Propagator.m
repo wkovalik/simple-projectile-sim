@@ -19,7 +19,7 @@ classdef Propagator < handle
         estimatedParams
 
         sensorList
-        sensorSampleRecord
+        sensorSampleHistory
     end
 
     properties (Dependent)
@@ -53,7 +53,7 @@ classdef Propagator < handle
             
             % Initialize list of sensors and measurement histories (used to take sensor measurements)
             self.sensorList = {};
-            self.sensorSampleRecord = dictionary();
+            self.sensorSampleHistory = dictionary();
         end
 
 
@@ -208,7 +208,7 @@ classdef Propagator < handle
             stateHistory = zeros(self.N_PROJECTILE_STATES, Constants.HISTORY_BUFFER_LEN);  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
 
             % Preallocate sensor measurement histories
-            self.initSensorSampleRecord();  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
+            self.initSensorSampleHistory();  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
             
             % Set initial time and projectile state
             time = self.projectile.time;
@@ -250,9 +250,9 @@ classdef Propagator < handle
             for i = 1:self.N_SENSORS
                 sensor = self.sensorList{i};
             
-                nSamples = self.sensorSampleRecord(sensor.sensorID).nSamples;
-                self.sensorSampleRecord(sensor.sensorID).timeHistory((nSamples + 1):end) = [];
-                self.sensorSampleRecord(sensor.sensorID).sampleHistory(:, (nSamples + 1):end) = [];
+                nSamples = self.sensorSampleHistory(sensor.sensorID).nSamples;
+                self.sensorSampleHistory(sensor.sensorID).timeHistory((nSamples + 1):end) = [];
+                self.sensorSampleHistory(sensor.sensorID).sampleHistory(:, (nSamples + 1):end) = [];
             end
             
             % Create interpolant for projectile trajectory
@@ -332,34 +332,34 @@ classdef Propagator < handle
                     sensor.sampleMeasurement(time, state);
                     
                     % Add sensor measurement to respective history (according to sensor ID)
-                    self.addSampleToRecord(sensor);
+                    self.addSampleToHistory(sensor);
                 end
             end
         end
 
-        function initSensorSampleRecord(self)
+        function initSensorSampleHistory(self)
             % Preallocate histories to store respective sensor measurements (according to sensor ID)
 
             for i = 1:self.N_SENSORS
                 sensor = self.sensorList{i};
 
-                initRecord.nSamples = 0;
-                initRecord.timeHistory = zeros(1, Constants.HISTORY_BUFFER_LEN);
-                initRecord.sampleHistory = zeros(sensor.N_MEASUREMENTS, Constants.HISTORY_BUFFER_LEN);
+                initHistory.nSamples = 0;
+                initHistory.timeHistory = zeros(1, Constants.HISTORY_BUFFER_LEN);
+                initHistory.sampleHistory = zeros(sensor.N_MEASUREMENTS, Constants.HISTORY_BUFFER_LEN);
 
-                self.sensorSampleRecord = insert(self.sensorSampleRecord, sensor.sensorID, initRecord);
+                self.sensorSampleHistory = insert(self.sensorSampleHistory, sensor.sensorID, initHistory);
             end
         end
 
-        function addSampleToRecord(self, sensor)
+        function addSampleToHistory(self, sensor)
             % Add new sensor measurement to respective history (according to sensor ID)
 
-            nSamples = self.sensorSampleRecord(sensor.sensorID).nSamples;
+            nSamples = self.sensorSampleHistory(sensor.sensorID).nSamples;
             nSamples = nSamples + 1;
 
-            self.sensorSampleRecord(sensor.sensorID).nSamples = nSamples;
-            self.sensorSampleRecord(sensor.sensorID).timeHistory(nSamples) = sensor.sampleTime;
-            self.sensorSampleRecord(sensor.sensorID).sampleHistory(:, nSamples) = sensor.sampledMeasurement;
+            self.sensorSampleHistory(sensor.sensorID).nSamples = nSamples;
+            self.sensorSampleHistory(sensor.sensorID).timeHistory(nSamples) = sensor.sampleTime;
+            self.sensorSampleHistory(sensor.sensorID).sampleHistory(:, nSamples) = sensor.sampledMeasurement;
         end
 
 
@@ -376,7 +376,7 @@ classdef Propagator < handle
             N_SENSORS = length(self.sensorList);
         end
 
-        
+
         % Setters ==================================================================================
         function set.propagate(self, propagateFn)
             self.propagate = Validator.validateType(propagateFn, "function_handle");

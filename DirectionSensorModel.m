@@ -86,10 +86,17 @@ classdef DirectionSensorModel < SensorModel
             H = zeros(self.N_MEASUREMENTS, 1);
         end
 
-        function H = computeWindJacobian(self, ~)
+        function H = computeWindxJacobian(self, ~)
             % Build Jacobian -----------------------------------------------------------------------
 
             % Partial derivatives w.r.t. vWindx
+            H = zeros(self.N_MEASUREMENTS, 1);
+        end
+
+        function H = computeWindyJacobian(self, ~)
+            % Build Jacobian -----------------------------------------------------------------------
+
+            % Partial derivatives w.r.t. vWindy
             H = zeros(self.N_MEASUREMENTS, 1);
         end
     end

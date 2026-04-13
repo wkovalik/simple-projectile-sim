@@ -15,8 +15,9 @@ classdef BatchEstimator < handle
         sensorModelList
         sensorModelMap
 
-        stateInterpolantList
-        measurementResidualRecordList
+        stateInterpolantHistory
+        estimatedParamHistory
+        measurementResidualHistory
     end
 
     properties (Dependent)
@@ -59,28 +60,29 @@ classdef BatchEstimator < handle
                 );
             end
 
-            % Preallocate lists to store data on each estimator iteration
-            self.stateInterpolantList = cell(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);           % List to store estimated state trajectory interpolants
-            self.measurementResidualRecordList = cell(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);  % List to store measurement residuals
+            % Preallocate history lists to store data on each estimator iteration
+            self.stateInterpolantHistory = cell(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);     % History of estimated projectile state interpolants
+            self.estimatedParamHistory = cell(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);       % History of estimated parameters
+            self.measurementResidualHistory = cell(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);  % History of measurement residuals
         end
         
 
         % Solve method =============================================================================
-        function solve(self, estimateTime, sensorSampleRecord)
+        function solve(self, estimateTime, sensorSampleHistory)
             % Setup and preprocessing --------------------------------------------------------------
 
             % Remove measurements from any sensors which are not included in sensor model list
-            sensorSampleRecord = self.removeUnmodeledSensorsFromRecord(sensorSampleRecord);
+            sensorSampleHistory = self.removeUnmodeledSensorsFromHistory(sensorSampleHistory);
 
             % Create aggregate measurement history with measurements sorted in chronological order
-            [chronoSensorSampleRecord, nTotalSamples, finalSampleTime] = ...
-                self.createChronoSensorSampleRecord(sensorSampleRecord);
+            [chronoSensorSampleHistory, nTotalSamples, finalSampleTime] = ...
+                self.createChronoSensorSampleHistory(sensorSampleHistory);
 
             % Find all projectile and planet parameters to be estimated
             self.findEstimatedParams();
             
             % Preallocate list to store measurement residuals on each iteration
-            self.initMeasurementResidualRecord(sensorSampleRecord);
+            self.initMeasurementResidualHistory(sensorSampleHistory);
 
 
             % Estimator state initialization -------------------------------------------------------
@@ -88,12 +90,15 @@ classdef BatchEstimator < handle
             % Propagate projectile state and covariance to desired estimate time
             self.projectileModel.time = estimateTime;  % TODO: Currently assumes estimateTime = initSimTime. Else, would need to propagate projectile state and covariance to estimateTime
             
-            % Store prefit projectile state and covariance
+            % Get prefit projectile state and covariance
             priorState = self.projectileModel.state.vector;
             priorStateCovar = self.projectileModel.state.covar;
             
-            % Store prefit projectile and planet model parameters and covariance
+            % Get prefit projectile and planet model parameters and covariance
             [priorParamState, priorParamCovar] = self.getEstimatedParamState();
+            if ~isempty(self.estimatedParams)
+                self.estimatedParamHistory{1} = priorParamState;  % Store prefit estimated parameters
+            end
 
             % Create augmented prefit state and covariance
             priorAugState = [priorState; priorParamState];
@@ -110,7 +115,7 @@ classdef BatchEstimator < handle
 
                 % Propagate nominal projectile state and STMs
                 self.propagator.propagate(finalSampleTime);
-                self.stateInterpolantList{ii} = self.propagator.stateInterpolant;  % Store nominal projectile trajectory
+                self.stateInterpolantHistory{ii} = self.propagator.stateInterpolant;  % Store nominal projectile trajectory
     
                 % Batch measurement update  --------------------------------------------------------
 
@@ -120,15 +125,15 @@ classdef BatchEstimator < handle
     
                 for i = 1:nTotalSamples
                     % Get next sensor measurement time and measurement
-                    sampleTime = chronoSensorSampleRecord{i}.sampleTime;
-                    sampledMeasurement = chronoSensorSampleRecord{i}.sampledMeasurement;
+                    sampleTime = chronoSensorSampleHistory{i}.sampleTime;
+                    sampledMeasurement = chronoSensorSampleHistory{i}.sampledMeasurement;
     
                     % Get nominal projectile state and STMs at time of measurement
                     sampleTimeState = self.propagator.getState(sampleTime);
                     [sampleTimeStateSTM, sampleTimeParamSTM] = self.propagator.getSTM(sampleTime);
     
                     % Get model for next sensor measurement
-                    sensorID = chronoSensorSampleRecord{i}.sensorID;
+                    sensorID = chronoSensorSampleHistory{i}.sensorID;
                     sensorModel = self.sensorModelMap{sensorID};
                     
                     % Compute measurement according to sensor model at nominal state
@@ -136,7 +141,7 @@ classdef BatchEstimator < handle
                     
                     % Compute measurement residual
                     measurementResidual = sampledMeasurement - computedMeasurement;
-                    self.addResidualToRecord(sensorID, sampleTime, measurementResidual, ii);  % Store measurement residual
+                    self.addResidualToHistory(sensorID, sampleTime, measurementResidual, ii);  % Store measurement residual
                     
                     % Compute measurement Jacobians
                     stateH = sensorModel.computeStateJacobian(sampleTimeState);
@@ -186,6 +191,8 @@ classdef BatchEstimator < handle
                     postParamCovar = postAugStateCovar(self.N_STATES + (1:self.N_ESTIMATED_PARAMS), self.N_STATES + (1:self.N_ESTIMATED_PARAMS));
 
                     self.updateEstimatedParams(postParamState, postParamCovar);
+
+                    self.estimatedParamHistory{ii + 1} = postParamState;  % Store postfit estimated parameters
                 end
             end
 
@@ -195,19 +202,19 @@ classdef BatchEstimator < handle
 
             % Propagate postfit projectile state
             self.propagator.propagate(finalSampleTime);
-            self.stateInterpolantList{ii + 1} = self.propagator.stateInterpolant;  % Store postfit projectile trajectory
+            self.stateInterpolantHistory{ii + 1} = self.propagator.stateInterpolant;  % Store postfit projectile trajectory
             
             % Compute postfit measurement residuals
             for i = 1:nTotalSamples
                 % Get next sensor measurement time and measurement
-                sampleTime = chronoSensorSampleRecord{i}.sampleTime;
-                sampledMeasurement = chronoSensorSampleRecord{i}.sampledMeasurement;
+                sampleTime = chronoSensorSampleHistory{i}.sampleTime;
+                sampledMeasurement = chronoSensorSampleHistory{i}.sampledMeasurement;
                 
                 % Get postfit projectile state at time of measurement
                 sampleTimeState = self.propagator.getState(sampleTime);
                 
                 % Get model for next sensor measurement 
-                sensorID = chronoSensorSampleRecord{i}.sensorID;
+                sensorID = chronoSensorSampleHistory{i}.sensorID;
                 sensorModel = self.sensorModelMap{sensorID};
                 
                 % Compute measurement according to sensor model at postfit state
@@ -215,7 +222,7 @@ classdef BatchEstimator < handle
                 
                 % Compute measurement residual
                 measurementResidual = sampledMeasurement - computedMeasurement;
-                self.addResidualToRecord(sensorID, sampleTime, measurementResidual, ii + 1);  % Store measurement residual
+                self.addResidualToHistory(sensorID, sampleTime, measurementResidual, ii + 1);  % Store measurement residual
             end
         end
 
@@ -328,10 +335,10 @@ classdef BatchEstimator < handle
             );
         end
 
-        function sensorSampleRecord = removeUnmodeledSensorsFromRecord(self, sensorSampleRecord)
+        function sensorSampleHistory = removeUnmodeledSensorsFromHistory(self, sensorSampleHistory)
             % Remove measurements from any sensors which are not included in sensor model list
 
-            sensorIDs = keys(sensorSampleRecord);
+            sensorIDs = keys(sensorSampleHistory);
 
             for i = 1:length(sensorIDs)
                 sensorID = sensorIDs(i);
@@ -346,72 +353,72 @@ classdef BatchEstimator < handle
                 end
 
                 if isUnmodeledSensor
-                    sensorSampleRecord = remove(sensorSampleRecord, sensorID);
+                    sensorSampleHistory = remove(sensorSampleHistory, sensorID);
                 end
             end
         end
 
-        function [chronoSensorSampleRecord, nTotalSamples, finalSampleTime] = createChronoSensorSampleRecord( ...
-                ~, sensorSampleRecord ...
+        function [chronoSensorSampleHistory, nTotalSamples, finalSampleTime] = createChronoSensorSampleHistory( ...
+                ~, sensorSampleHistory ...
         )
             % Create aggregate measurement history with measurements sorted in chronological order
 
-            sensorIDs = keys(sensorSampleRecord);
+            sensorIDs = keys(sensorSampleHistory);
         
             % Find total number of measurements from all sensors
             nTotalSamples = 0;
             for i = 1:length(sensorIDs)
                 sensorID = sensorIDs(i);
-                nSamples = sensorSampleRecord(sensorID).nSamples;
+                nSamples = sensorSampleHistory(sensorID).nSamples;
         
                 nTotalSamples = nTotalSamples + nSamples;
             end
         
             % Build concatenated, unsorted list of measurement histories from all sensors
-            concatSensorSampleRecord = cell(1, nTotalSamples);
+            concatSensorSampleHistorry = cell(1, nTotalSamples);
             sampleCount = 0;
             for i = 1:length(sensorIDs)
                 sensorID = sensorIDs(i);
-                nSamples = sensorSampleRecord(sensorID).nSamples;
+                nSamples = sensorSampleHistory(sensorID).nSamples;
         
                 for j = 1:nSamples
                     sampleCount = sampleCount + 1;
                     
-                    concatSensorSampleRecord{sampleCount}.sensorID = sensorID;
-                    concatSensorSampleRecord{sampleCount}.sampleTime = sensorSampleRecord(sensorID).timeHistory(j);
-                    concatSensorSampleRecord{sampleCount}.sampledMeasurement = sensorSampleRecord(sensorID).sampleHistory(:, j);
+                    concatSensorSampleHistorry{sampleCount}.sensorID = sensorID;
+                    concatSensorSampleHistorry{sampleCount}.sampleTime = sensorSampleHistory(sensorID).timeHistory(j);
+                    concatSensorSampleHistorry{sampleCount}.sampledMeasurement = sensorSampleHistory(sensorID).sampleHistory(:, j);
                 end
             end
             
-            % Determine order to sort concatenated list in chronological order
+            % Determine order to sort concatenated history list in chronological order
             sampleTimes = zeros(1, nTotalSamples);
             sensorIDs = zeros(1, nTotalSamples);
             for i = 1:nTotalSamples
-                sampleTimes(i) = concatSensorSampleRecord{i}.sampleTime;
-                sensorIDs(i) = concatSensorSampleRecord{i}.sensorID;
+                sampleTimes(i) = concatSensorSampleHistorry{i}.sampleTime;
+                sensorIDs(i) = concatSensorSampleHistorry{i}.sensorID;
             end
         
             [~, sortIndices] = sortrows([sampleTimes; sensorIDs]', [1, 2]);  % Sort by measurement time, then by sensor ID
         
-            % Sort concatenated list in chronological order
-            chronoSensorSampleRecord = cell(1, nTotalSamples);
+            % Sort concatenated history list in chronological order
+            chronoSensorSampleHistory = cell(1, nTotalSamples);
             for i = 1:nTotalSamples
-                chronoSensorSampleRecord{i} = concatSensorSampleRecord{sortIndices(i)};
+                chronoSensorSampleHistory{i} = concatSensorSampleHistorry{sortIndices(i)};
             end
 
-            finalSampleTime = chronoSensorSampleRecord{end}.sampleTime;
-            % finalSampleTime = self.getFinalSampleTime(sensorSampleRecord);
+            finalSampleTime = chronoSensorSampleHistory{end}.sampleTime;
+            % finalSampleTime = self.getFinalSampleTime(sensorSampleHistory);
         end
 
-        function finalSampleTime = getFinalSampleTime(~, sensorSampleRecord)
+        function finalSampleTime = getFinalSampleTime(~, sensorSampleHistory)
             % Get time of final sensor measurement
 
-            sensorIDs = keys(sensorSampleRecord);
+            sensorIDs = keys(sensorSampleHistory);
 
             finalSampleTime = 0;
             for i = 1:length(sensorIDs)
                 sensorID = sensorIDs(i);
-                sensorFinalSampleTime = sensorSampleRecord(sensorID).timeHistory(end);
+                sensorFinalSampleTime = sensorSampleHistory(sensorID).timeHistory(end);
             
                 if sensorFinalSampleTime > finalSampleTime
                     finalSampleTime = sensorFinalSampleTime;
@@ -419,37 +426,37 @@ classdef BatchEstimator < handle
             end
         end
 
-        function initMeasurementResidualRecord(self, sensorSampleRecord)
-            % Preallocate list to store measurement residuals on each iteration
+        function initMeasurementResidualHistory(self, sensorSampleHistory)
+            % Preallocate history list to store measurement residuals on each iteration
 
             for ii = 1:(Constants.MAX_ESTIMATOR_ITERATIONS + 1)
-                self.measurementResidualRecordList{ii} = dictionary();
+                self.measurementResidualHistory{ii} = dictionary();
     
                 for i = 1:self.N_SENSOR_MODELS
                     sensorModel = self.sensorModelList{i};
                     
-                    nSamples = sensorSampleRecord(sensorModel.sensorID).nSamples;
+                    nSamples = sensorSampleHistory(sensorModel.sensorID).nSamples;
                     
-                    initRecord.nSamples = 0;
-                    initRecord.timeHistory = zeros(1, nSamples);
-                    initRecord.residualHistory = zeros(sensorModel.N_MEASUREMENTS, nSamples);
+                    initHistory.nSamples = 0;
+                    initHistory.timeHistory = zeros(1, nSamples);
+                    initHistory.residualHistory = zeros(sensorModel.N_MEASUREMENTS, nSamples);
     
-                    self.measurementResidualRecordList{ii} = insert( ...
-                        self.measurementResidualRecordList{ii}, sensorModel.sensorID, initRecord ...
+                    self.measurementResidualHistory{ii} = insert( ...
+                        self.measurementResidualHistory{ii}, sensorModel.sensorID, initHistory ...
                     );
                 end
             end
         end
 
-        function addResidualToRecord(self, sensorID, sampleTime, measurementResidual, nIteration)
-            % Add measurement residual to history record 
+        function addResidualToHistory(self, sensorID, sampleTime, measurementResidual, nIteration)
+            % Add measurement residual to history
 
-            nSamples = self.measurementResidualRecordList{nIteration}(sensorID).nSamples;
+            nSamples = self.measurementResidualHistory{nIteration}(sensorID).nSamples;
             nSamples = nSamples + 1;
             
-            self.measurementResidualRecordList{nIteration}(sensorID).nSamples = nSamples;
-            self.measurementResidualRecordList{nIteration}(sensorID).timeHistory(nSamples) = sampleTime;
-            self.measurementResidualRecordList{nIteration}(sensorID).residualHistory(:, nSamples) = measurementResidual;
+            self.measurementResidualHistory{nIteration}(sensorID).nSamples = nSamples;
+            self.measurementResidualHistory{nIteration}(sensorID).timeHistory(nSamples) = sampleTime;
+            self.measurementResidualHistory{nIteration}(sensorID).residualHistory(:, nSamples) = measurementResidual;
         end
 
 
