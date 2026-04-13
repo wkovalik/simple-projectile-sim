@@ -7,14 +7,16 @@ classdef ProjectileState < handle
     properties (Dependent)
         x
         y
+        z
         vx
         vy
+        vz
 
         invCovar
     end
 
     properties (Constant)
-        N_STATES = 4;
+        N_STATES = 6;
     end
 
     methods
@@ -43,14 +45,24 @@ classdef ProjectileState < handle
             y.covar = self.covar(2, 2);
         end
 
+        function z = get.z(self)
+            z.value = self.vector(3);
+            z.covar = self.covar(3, 3);
+        end
+
         function vx = get.vx(self)
-            vx.value = self.vector(3);
-            vx.covar = self.covar(3, 3);
+            vx.value = self.vector(4);
+            vx.covar = self.covar(4, 4);
         end
 
         function vy = get.vy(self)
-            vy.value = self.vector(4);
-            vy.covar = self.covar(4, 4);
+            vy.value = self.vector(5);
+            vy.covar = self.covar(5, 5);
+        end
+
+        function vz = get.vz(self)
+            vz.value = self.vector(6);
+            vz.covar = self.covar(6, 6);
         end
 
         function invCovar = get.invCovar(self)

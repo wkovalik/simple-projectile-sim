@@ -22,18 +22,20 @@ classdef ProjectileDynamics < handle
         end
 
         % Force model methods ======================================================================
-        function [Fx, Fy] = projectileGravModel(self)
+        function [Fx, Fy, Fz] = projectileGravModel(self)
             m = self.projectile.params.m.value;
 
             g = self.earth.params.g.value;
             
             Fx = 0;
-            Fy = -m * g;
+            Fy = 0;
+            Fz = m * g;
         end
 
-        function [Fx, Fy] = projectileAeroModel(self, state)          
-            vx = state(3);
-            vy = state(4);
+        function [Fx, Fy, Fz] = projectileAeroModel(self, state)          
+            vx = state(4);
+            vy = state(5);
+            vz = state(6);
             
             S = self.projectile.params.S.value;
             CD = self.projectile.params.CD.value;
@@ -42,31 +44,38 @@ classdef ProjectileDynamics < handle
             vWindx = self.earth.params.vWindx.value;
             
             vInfx = vx - vWindx;
-            VInf = (vInfx ^ 2 + vy ^ 2) ^ 0.5;
+            vInfy = vy;
+            vInfz = vz;
+            VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
             Fx = -(rho * S * CD / 2) * VInf * vInfx;
-            Fy = -(rho * S * CD / 2) * VInf * vy;
+            Fy = -(rho * S * CD / 2) * VInf * vInfy;
+            Fz = -(rho * S * CD / 2) * VInf * vInfz;
         end
         
         % Derivative methods =======================================================================
         function stateDeriv = computeStateDeriv(self, state)
-            vx = state(3);
-            vy = state(4);
+            vx = state(4);
+            vy = state(5);
+            vz = state(6);
             
             m = self.projectile.params.m.value;
             
-            [FGravx, FGravy] = self.projectileGravModel();
-            [FAerox, FAeroy] = self.projectileAeroModel(state);
+            [FGravx, FGravy, FGravz] = self.projectileGravModel();
+            [FAerox, FAeroy, FAeroz] = self.projectileAeroModel(state);
             
             Fx = FGravx + FAerox;
             Fy = FGravy + FAeroy;
+            Fz = FGravz + FAeroz;
             
             xDeriv = vx;
             yDeriv = vy;
+            zDeriv = vz;
             vxDeriv = Fx / m;
             vyDeriv = Fy / m;
+            vzDeriv = Fz / m;
             
-            stateDeriv = [xDeriv; yDeriv; vxDeriv; vyDeriv];
+            stateDeriv = [xDeriv; yDeriv; zDeriv; vxDeriv; vyDeriv; vzDeriv];
         end
         
         function [stateSTMDeriv, paramSTMDeriv] = computeSTMDeriv(self, state, stateSTM, paramSTM)
@@ -108,8 +117,9 @@ classdef ProjectileDynamics < handle
         
         % Jacobian methods =========================================================================
         function A = computeStateJacobian(self, state)
-            vx = state(3);
-            vy = state(4);
+            vx = state(4);
+            vy = state(5);
+            vz = state(6);
 
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
@@ -119,17 +129,26 @@ classdef ProjectileDynamics < handle
             vWindx = self.earth.params.vWindx.value;
 
             vInfx = vx - vWindx;
-            VInf = (vInfx ^ 2 + vy ^ 2) ^ 0.5;
+            vInfy = vy;
+            vInfz = vz;
+            VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
 
             A = zeros(self.N_PROJECTILE_STATES);
 
-            A(1, 3) = 1;
-            A(3, 3) = -(rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
-            A(4, 3) = -(rho * S * CD / (2 * m)) * (vInfx * vy / VInf);
+            A(1, 4) = 1;
+            A(4, 4) = -(rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
+            A(5, 4) = -(rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
+            A(6, 4) = -(rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
 
-            A(2, 4) = 1;
-            A(3, 4) = -(rho * S * CD / (2 * m)) * (vInfx * vy / VInf);
-            A(4, 4) = -(rho * S * CD / (2 * m)) * (vy ^ 2 / VInf + VInf);
+            A(2, 5) = 1;
+            A(4, 5) = -(rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
+            A(5, 5) = -(rho * S * CD / (2 * m)) * (vInfy ^ 2 / VInf + VInf);
+            A(6, 5) = -(rho * S * CD / (2 * m)) * (vInfy * vInfz / VInf);
+
+            A(3, 6) = 1;
+            A(4, 6) = -(rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
+            A(5, 6) = -(rho * S * CD / (2 * m)) * (vInfy * vInfz / VInf);
+            A(6, 6) = -(rho * S * CD / (2 * m)) * (vInfz ^ 2 / VInf + VInf);
         end
 
         function A = computeParamJacobian(self, state)
@@ -141,8 +160,9 @@ classdef ProjectileDynamics < handle
         end
 
         function A = computeDragJacobian(self, state)
-            vx = state(3);
-            vy = state(4);
+            vx = state(4);
+            vy = state(5);
+            vz = state(6);
             
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
@@ -151,17 +171,21 @@ classdef ProjectileDynamics < handle
             vWindx = self.earth.params.vWindx.value;
             
             vInfx = vx - vWindx;
-            VInf = (vInfx ^ 2 + vy ^ 2) ^ 0.5;
+            vInfy = vy;
+            vInfz = vz;
+            VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
             A = zeros(self.N_PROJECTILE_STATES, 1);
             
-            A(3, 1) = -(rho * S / (2 * m)) * VInf * vInfx;
-            A(4, 1) = -(rho * S / (2 * m)) * VInf * vy;
+            A(4, 1) = -(rho * S / (2 * m)) * VInf * vInfx;
+            A(5, 1) = -(rho * S / (2 * m)) * VInf * vInfy;
+            A(6, 1) = -(rho * S / (2 * m)) * VInf * vInfz;
         end
             
         function A = computeWindJacobian(self, state)
-            vx = state(3);
-            vy = state(4);
+            vx = state(4);
+            vy = state(5);
+            vz = state(6);
             
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
@@ -171,12 +195,15 @@ classdef ProjectileDynamics < handle
             vWindx = self.earth.params.vWindx.value;
             
             vInfx = vx - vWindx;
-            VInf = (vInfx ^ 2 + vy ^ 2) ^ 0.5;
+            vInfy = vy;
+            vInfz = vz;
+            VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
             
             A = zeros(self.N_PROJECTILE_STATES, 1);
             
-            A(3, 1) = (rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
-            A(4, 1) = (rho * S * CD / (2 * m)) * (vInfx * vy / VInf);
+            A(4, 1) = (rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
+            A(5, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
+            A(6, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
         end
 
         % Getters ==================================================================================

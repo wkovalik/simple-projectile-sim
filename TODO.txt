@@ -1,8 +1,17 @@
-GLOBAL TODOs
+IMPLEMENTATION TODOs
+
+TODO: Sequential/Kalman filter
+TODO: Numerical diff Jacobian
+TODO: Auto diff Jacobian
+
+
+
+CODE TODOs
 
 TODO: Do solid pass of all property and method attributes
 TODO: Do solid pass of all getter and setter methods (as well as making properties Dependent
       or "psudeo"-Dependent (see estimatedParamJacobianMap)
+TODO: Do solid vectorizing/matrixing pass
 
 TODO: Abstract wherever you can (ProjectileState < State? BatchEstimator < Estimator?)
 
