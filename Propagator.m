@@ -101,10 +101,19 @@ classdef Propagator < handle
             nSteps = 0;
             while time < (finalTime - Constants.TIME_TOLERANCE)  % See Constants:Note 1
                 % Step to next time and state
-                [time, state] = self.integrator.step(time, state);
-                nSteps = nSteps + 1;
+                [nextTime, nextState] = self.integrator.step(time, state);
+
+                % TODO: Implement proper event checking
+                % if nextState(3) > 0
+                %     break
+                % end
+
+                time = nextTime;
+                state = nextState;
                 
                 % Store next time and projectile state
+                nSteps = nSteps + 1;
+                
                 timeHistory(nSteps + 1) = time;
                 stateHistory(:, nSteps + 1) = state;
             end
@@ -126,6 +135,7 @@ classdef Propagator < handle
             % Preallocate time, state, and STM histories
             timeHistory = zeros(1, Constants.HISTORY_BUFFER_LEN);
             stateHistory = zeros(self.N_PROJECTILE_STATES, Constants.HISTORY_BUFFER_LEN);
+
             stateSTMHistory = zeros(self.N_PROJECTILE_STATES ^ 2, Constants.HISTORY_BUFFER_LEN);
             if ~isempty(self.estimatedParams)
                 paramSTMHistory = zeros(self.N_PROJECTILE_STATES * self.N_ESTIMATED_PARAMS, Constants.HISTORY_BUFFER_LEN);
@@ -155,6 +165,7 @@ classdef Propagator < handle
             % Store initial time, state, and STMs
             timeHistory(1) = time;
             stateHistory(:, 1) = state;
+
             stateSTMHistory(:, 1) = stateSTM;
             if ~isempty(self.estimatedParams)
                 paramSTMHistory(:, 1) = paramSTM;
@@ -165,19 +176,37 @@ classdef Propagator < handle
             nSteps = 0;
             while time < (finalTime - Constants.TIME_TOLERANCE)  % See Constants:Note 1
                 % Step to next time and augmented state
-                [time, augState] = self.integrator.step(time, augState);
-                nSteps = nSteps + 1;
+                [nextTime, nextAugState] = self.integrator.step(time, augState);
                 
                 % Deconcatenate augmented state
-                state = augState(1:self.N_PROJECTILE_STATES);
-                stateSTM = augState(self.N_PROJECTILE_STATES + (1:self.N_PROJECTILE_STATES ^ 2));
+                nextState = nextAugState(1:self.N_PROJECTILE_STATES);
+
+                nextStateSTM = nextAugState(self.N_PROJECTILE_STATES + (1:self.N_PROJECTILE_STATES ^ 2));
                 if ~isempty(self.estimatedParams)
-                    paramSTM = augState((self.N_PROJECTILE_STATES + self.N_PROJECTILE_STATES ^ 2) + (1:(self.N_PROJECTILE_STATES * self.N_ESTIMATED_PARAMS)));
+                    nextParamSTM = nextAugState((self.N_PROJECTILE_STATES + self.N_PROJECTILE_STATES ^ 2) + (1:(self.N_PROJECTILE_STATES * self.N_ESTIMATED_PARAMS)));
                 end
 
+                % TODO: Implement proper event checking
+                % if nextState(3) > 0
+                %     break
+                % end
+
+                time = nextTime;
+                state = nextState;
+
+                stateSTM = nextStateSTM;
+                if ~isempty(self.estimatedParams)
+                    paramSTM = nextParamSTM;
+                end
+
+                augState = nextAugState;
+
                 % Store next time, state, and STMs
+                nSteps = nSteps + 1;
+                
                 timeHistory(nSteps + 1) = time;
                 stateHistory(:, nSteps + 1) = state;
+
                 stateSTMHistory(:, nSteps + 1) = stateSTM;
                 if ~isempty(self.estimatedParams)
                     paramSTMHistory(:, nSteps + 1) = paramSTM;
@@ -192,6 +221,7 @@ classdef Propagator < handle
             % Remove all unused entries in time, state, and STM histories
             timeHistory((nSteps + 2):end) = [];
             stateHistory(:, (nSteps + 2):end) = [];
+
             stateSTMHistory(:, (nSteps + 2):end) = [];
             if ~isempty(self.estimatedParams)
                 paramSTMHistory(:, (nSteps + 2):end) = [];
@@ -226,13 +256,22 @@ classdef Propagator < handle
             nSteps = 0;
             while time < (finalTime - Constants.TIME_TOLERANCE)  % See Constants:Note 1
                 % Step to next time and state
-                [time, state] = self.integrator.step(time, state);
-                nSteps = nSteps + 1;
+                [nextTime, nextState] = self.integrator.step(time, state);
+
+                % TODO: Implement proper event checking
+                if nextState(3) > 0
+                    break
+                end
+
+                time = nextTime;
+                state = nextState;
                 
                 % Take sensor measurements (if needed)
                 self.checkSensors(time, state);
                 
                 % Store next time and projectile state
+                nSteps = nSteps + 1;
+
                 timeHistory(nSteps + 1) = time;
                 stateHistory(:, nSteps + 1) = state;
             end

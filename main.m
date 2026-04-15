@@ -2,8 +2,8 @@ clear; clc; close all;
 
 rng(0);
 
-initSimTime = 0;   % (s) Initial time of truth simulation
-finalSimTime = 7;  % (s) Final time of truth simulation
+initSimTime = 0;    % (s) Initial time of truth simulation
+finalSimTime = 10;  % (s) Final time of truth simulation
 
 estimateTime = 0;  % (s) Time at which you want to estimate state
 
@@ -78,6 +78,7 @@ truthPropagator.selectPropagator("stateWithSensors");  % Option to take sensor m
 % Propagate truth trajectory -----------------------------------------------------------------------
 truthPropagator.propagate(finalSimTime);
 
+finalSimTime = truthProjectile.time;                        % Update final time in case of event trigger (e.g., ground impact)
 sensorSampleHistory = truthPropagator.sensorSampleHistory;  % Contains sensor measurement histories
 
 
