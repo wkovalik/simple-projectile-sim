@@ -45,8 +45,8 @@ classdef Propagator < handle
             self.integrator = integrator;
             
             % Set initial interpolant methods
-            self.interpMethod = Constants.INTERP_METHOD;
-            self.extrapMethod = Constants.EXTRAP_METHOD;
+            self.interpMethod = Constants.DEFAULT_INTERP_METHOD;
+            self.extrapMethod = Constants.DEFAULT_EXTRAP_METHOD;
             
             % Initialize list of parameters to be estimated (used to compute parameter STM)
             self.estimatedParams = [];
@@ -59,6 +59,8 @@ classdef Propagator < handle
 
         % Propagate methods ========================================================================
         function selectPropagator(self, method)
+            Validator.validateInEnum(method, ["stateOnly", "stateAndSTM", "stateWithSensors"]);
+
             switch method
                 % Propagate projectile state vector only
                 case "stateOnly"
@@ -77,9 +79,6 @@ classdef Propagator < handle
                     self.propagate = @self.propagateStateWithSensors;
                     self.integrator.stateDerivFn = ...
                         @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
-
-                otherwise
-                    error("Invalid propagation method.")
             end
         end
 

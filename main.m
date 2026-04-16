@@ -143,6 +143,11 @@ projectileModel.params.CD.isEstimated = true;
 earthModel.params.vWindx.isEstimated = true;
 earthModel.params.vWindy.isEstimated = true;
 
+% Set Jacobian computation methods -----------------------------------------------------------------
+projectileModelDynamics.jacobianMethod = "analytic";
+rangeSensorModel.jacobianMethod = "analytic";
+directionSensorModel.jacobianMethod = "analytic";
+
 % Create batch estimator ---------------------------------------------------------------------------
 estimator = BatchEstimator(projectileModelDynamics, integrator, { rangeSensorModel, directionSensorModel });
 

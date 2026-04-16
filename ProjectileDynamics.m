@@ -4,12 +4,28 @@ classdef ProjectileDynamics < handle
         earth
 
         estimatedParams
-        estimatedParamJacobianMap
+        estimatedParamSourceMap
+        estimatedParamAnalyticJacobianMap
+
+        jacobianMethod
     end
 
     properties (Dependent)
         N_PROJECTILE_STATES
         N_ESTIMATED_PARAMS
+    end
+
+    properties (Constant)
+        PARAM_SOURCE_MAP = dictionary( ...
+                                 "CD",     "projectile", ...
+                                 "vWindx", "earth",      ...
+                                 "vWindy", "earth"       ...
+                             );
+        PARAM_ANALYTIC_JACOBIAN_MAP = dictionary( ...
+                                          "CD",     @computeAnalyticDragJacobian,  ...
+                                          "vWindx", @computeAnalyticWindxJacobian, ...
+                                          "vWindy", @computeAnalyticWindyJacobian  ...
+                                      );
     end
 
     methods
@@ -21,6 +37,9 @@ classdef ProjectileDynamics < handle
             
             % Initialize list of parameters to be estimated (used to compute parameter Jacobian)
             self.estimatedParams = [];
+            
+            % Set initial Jacobian computation method
+            self.jacobianMethod = Constants.DEFAULT_JACOBIAN_METHOD;
         end
 
 
@@ -108,7 +127,12 @@ classdef ProjectileDynamics < handle
             stateSTM = reshape(stateSTM, [self.N_PROJECTILE_STATES, self.N_PROJECTILE_STATES]);
             
             % Compute dynamics Jacobian
-            stateA = self.computeStateJacobian(state);
+            switch self.jacobianMethod
+                case "numeric"
+                    stateA = self.computeNumericStateJacobian(state);
+                case "analytic"
+                    stateA = self.computeAnalyticStateJacobian(state);
+            end
             
             % Compute STM derivative
             stateSTMDeriv = stateA * stateSTM;
@@ -123,8 +147,13 @@ classdef ProjectileDynamics < handle
                 paramSTM = reshape(paramSTM, [self.N_PROJECTILE_STATES, self.N_ESTIMATED_PARAMS]);
                 
                 % Compute dynamics Jacobian
-                paramA = self.computeParamJacobian(state);
-                
+                switch self.jacobianMethod
+                    case "numeric"
+                        paramA = self.computeNumericParamJacobian(state);
+                    case "analytic"
+                        paramA = self.computeAnalyticParamJacobian(state);
+                end
+                    
                 % Compute STM derivative
                 paramSTMDeriv = stateA * paramSTM + paramA;
 
@@ -159,43 +188,68 @@ classdef ProjectileDynamics < handle
         
 
         % Jacobian methods =========================================================================
-        function A = computeStateJacobian(self, state)
+        function A = computeNumericStateJacobian(self, state)
+            A = zeros(self.N_PROJECTILE_STATES);
+            
+            % Numerically compute partial derivatives w.r.t. each projectile state
+            for i = 1:self.N_PROJECTILE_STATES
+                % Compute state perturbation
+                delta = Constants.JACOBIAN_PERTURBATION_FACTOR * (1 + abs(state(i)));
+                
+                % Compute forward-perturbed state derivative
+                statePlus = state;
+                statePlus(i) = statePlus(i) + delta;
+
+                stateDerivPlus = self.computeStateDeriv(statePlus);
+                
+                % Compute backward-perturbed state derivative
+                stateMinus = state;
+                stateMinus(i) = stateMinus(i) - delta;
+
+                stateDerivMinus = self.computeStateDeriv(stateMinus);
+                
+                % Approximate partial derivative using central difference method
+                A(:, i) = (stateDerivPlus - stateDerivMinus) / (2 * delta);
+            end
+        end
+
+        function A = computeAnalyticStateJacobian(self, state)
             % Get projectile states
             vx = state(4);
             vy = state(5);
             vz = state(6);
-            
+
             % Get projectile parameters
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
             CD = self.projectile.params.CD.value;
-            
+
             % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
-            
+
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
             vInfy = vy - vWindy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
-            
+
             % Build Jacobian -----------------------------------------------------------------------
             A = zeros(self.N_PROJECTILE_STATES);
-            
+
             % Partial derivatives w.r.t. vx
             A(1, 4) = 1;
             A(4, 4) = -(rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
             A(5, 4) = -(rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
             A(6, 4) = -(rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
-            
+
             % Partial derivatives w.r.t. vy
             A(2, 5) = 1;
             A(4, 5) = -(rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
             A(5, 5) = -(rho * S * CD / (2 * m)) * (vInfy ^ 2 / VInf + VInf);
             A(6, 5) = -(rho * S * CD / (2 * m)) * (vInfy * vInfz / VInf);
-            
+
             % Partial derivatives w.r.t. vz
             A(3, 6) = 1;
             A(4, 6) = -(rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
@@ -203,101 +257,134 @@ classdef ProjectileDynamics < handle
             A(6, 6) = -(rho * S * CD / (2 * m)) * (vInfz ^ 2 / VInf + VInf);
         end
 
-        function A = computeParamJacobian(self, state)
+        function A = computeNumericParamJacobian(self, state)
             A = zeros(self.N_PROJECTILE_STATES, self.N_ESTIMATED_PARAMS);
-            
-            % Build Jacobian using individual Jacobians corresponding to each estimated parameter
+
+            % Numerically compute partial derivatives w.r.t. each estimated parameter
             for i = 1:self.N_ESTIMATED_PARAMS
-                A(:, i) = self.estimatedParamJacobianMap{i}(self, state);  % See Note 1
+                paramName = self.estimatedParams{i};
+                paramSource = self.estimatedParamSourceMap{i};
+
+                param = self.(paramSource).params.(paramName).value;
+
+                % Compute parameter perturbation
+                delta = Constants.JACOBIAN_PERTURBATION_FACTOR * (1 + param);
+
+                % Compute forward-perturbed state derivative
+                paramPlus = param + delta;
+                self.(paramSource).params.(paramName).value = paramPlus;
+
+                stateDerivPlus = self.computeStateDeriv(state);
+
+                % Compute backward-perturbed state derivative
+                paramMinus = param - delta;
+                self.(paramSource).params.(paramName).value = paramMinus;
+
+                stateDerivMinus = self.computeStateDeriv(state);
+
+                % Approximate partial derivative using central difference method
+                A(:, i) = (stateDerivPlus - stateDerivMinus) / (2 * delta);
+
+                % Reset parameter
+                self.(paramSource).params.(paramName).value = param;
             end
         end
 
-        function A = computeDragJacobian(self, state)
+        function A = computeAnalyticParamJacobian(self, state)
+            A = zeros(self.N_PROJECTILE_STATES, self.N_ESTIMATED_PARAMS);
+
+            % Build Jacobian using individual Jacobians corresponding to each estimated parameter
+            for i = 1:self.N_ESTIMATED_PARAMS
+                A(:, i) = self.estimatedParamAnalyticJacobianMap{i}(self, state);  % See Note 1
+            end
+        end
+
+        function A = computeAnalyticDragJacobian(self, state)
             % Get projectile state
             vx = state(4);
             vy = state(5);
             vz = state(6);
-            
+
             % Get projectile parameters
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
-            
+
             % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
-            
+
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
             vInfy = vy - vWindy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
-            
+
             % Build Jacobian -----------------------------------------------------------------------
             A = zeros(self.N_PROJECTILE_STATES, 1);
-            
+
             % Partial derivatives w.r.t. CD
             A(4, 1) = -(rho * S / (2 * m)) * VInf * vInfx;
             A(5, 1) = -(rho * S / (2 * m)) * VInf * vInfy;
             A(6, 1) = -(rho * S / (2 * m)) * VInf * vInfz;
         end
             
-        function A = computeWindxJacobian(self, state)
+        function A = computeAnalyticWindxJacobian(self, state)
             % Get projectile state
             vx = state(4);
             vy = state(5);
             vz = state(6);
-            
+
             % Get projectile parameters
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
             CD = self.projectile.params.CD.value;
-            
+
             % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
-            
+
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
             vInfy = vy - vWindy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
-            
+
             % Build Jacobian -----------------------------------------------------------------------
             A = zeros(self.N_PROJECTILE_STATES, 1);
-            
+
             % Partial derivatives w.r.t. vWindx
             A(4, 1) = (rho * S * CD / (2 * m)) * (vInfx ^ 2 / VInf + VInf);
             A(5, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
             A(6, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfz / VInf);
         end
 
-        function A = computeWindyJacobian(self, state)
+        function A = computeAnalyticWindyJacobian(self, state)
             % Get projectile state
             vx = state(4);
             vy = state(5);
             vz = state(6);
-            
+
             % Get projectile parameters
             m = self.projectile.params.m.value;
             S = self.projectile.params.S.value;
             CD = self.projectile.params.CD.value;
-            
+
             % Get planet parameters
             rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
-            
+
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
             vInfy = vy - vWindy;
             vInfz = vz;
             VInf = (vInfx ^ 2 + vInfy ^ 2 + vInfz ^ 2) ^ 0.5;
-            
+
             % Build Jacobian -----------------------------------------------------------------------
             A = zeros(self.N_PROJECTILE_STATES, 1);
-            
+
             % Partial derivatives w.r.t. vWindy
             A(4, 1) = (rho * S * CD / (2 * m)) * (vInfx * vInfy / VInf);
             A(5, 1) = (rho * S * CD / (2 * m)) * (vInfy ^ 2 / VInf + VInf);
@@ -328,54 +415,73 @@ classdef ProjectileDynamics < handle
             if ~isempty(estimatedParams)
                 self.estimatedParams = Validator.validateType(estimatedParams, "string");
             end
-            
-            % Rebuild dictionary of Jacobian compute function handles
-            self.buildEstimatedParamJacobianMap();
+
+            % Rebuild mapping lists for all estimated parameters
+            self.buildEstimatedParamMaps();
         end
 
-        function buildEstimatedParamJacobianMap(self)
-            % Builds dictionary of Jacobian compute function handles, which maps each estimated
-            % parameter to its corresponding Jacobian compute function
-            % Example: { "CD" -> @self.computeDragJacobian, "vWindx" -> @self.computeWindJacobian }
+        function buildEstimatedParamMaps(self)
+            % Builds list of object source location and list of Jacobian compute function handles
+            % for each corresponding estimated parameter. See Note 1
+            % Example: self.estimatedParams = [ "CD", "vWindx" ]
+            %          self.estimatedParamSourceMap = { "projectile", "earth" }
+            %          self.estimatedParamJacobianMap = { @self.computeDragJacobian, @self.computeWindxJacobian }
 
-            self.estimatedParamJacobianMap = {};
+            self.estimatedParamSourceMap = {};
+            self.estimatedParamAnalyticJacobianMap = {};
 
             if ~isempty(self.estimatedParams)
                 for i = 1:self.N_ESTIMATED_PARAMS
                     estimatedParam = self.estimatedParams(i);
-    
-                    self.estimatedParamJacobianMap{end + 1} = Constants.PARAM_JACOBIAN_MAP(estimatedParam);
+                    
+                    self.estimatedParamSourceMap{end + 1} = self.PARAM_SOURCE_MAP(estimatedParam);
+                    self.estimatedParamAnalyticJacobianMap{end + 1} = self.PARAM_ANALYTIC_JACOBIAN_MAP(estimatedParam);
                 end
             end
+        end
+
+        function set.jacobianMethod(self, jacobianMethod)
+            self.jacobianMethod = Validator.validateInEnum(jacobianMethod, ["analytic", "numeric"]);
         end
     end
 end
 
+% TODO Tomorrow
+% Move maps to here. Add param source map. Then compute param jacobian like state jacobian
+% Do same for sensormodel. Will have to add projectile and earth handles to sensormodels
+% Try implementing TODO about not passing state vectors, but rather projectile (which contains state) and earth models?
+%     see if performance takes a huge hit
+% TODO Seems doing param assigment is very slow. Maybe concatenate all params into vector (like
+% state) and pass that around (so all funcs are now fn(state, params) or fn(projState, projParams, planetParams) instead of fn(state))
+
+
 % Note 1
 %
-% The original implementation of the computeParamJacobian() function was
+% The original implementation of the computeAnalyticParamJacobian() function was
 %
 % | for i = 1:self.N_ESTIMATED_PARAMS
 % |     estimatedParam = self.estimatedParams(i);
 % | 
-% |     A(:, i) = feval(Constants.PARAM_JACOBIAN_MAP(estimatedParam), self, state);
+% |     A(:, i) = feval(self.PARAM_ANALYTIC_JACOBIAN_MAP(estimatedParam), state);
 % | end
 %
-% However, directly looking up the Jacobian function handles in Constants.PARAM_JACOBIAN_MAP ended
-% up being quite slow (around twice as slow as the current implementation, in fact). I dunno why.
-% My best guess is the local, individual self.computeEstimatedParamJacobian function handles were
-% being rebuilt on every single lookup of Constants.PARAM_JACOBIAN_MAP(estimatedParam).
+% However, directly looking up the Jacobian function handles in self.PARAM_ANALYTIC_JACOBIAN_MAP
+% ended up being quite slow (around twice as slow as the current implementation, in fact). I dunno
+% why. My best guess is the local, individual self.computeAnalyticParamJacobian function handles
+% were being rebuilt on every single lookup of self.PARAM_ANALYTIC_JACOBIAN_MAP(estimatedParam).
 %
-% So instead, a local self.estimatedParamJacobianMap property is built which is a cell array of the
-% subset of Jacobian function handles in the full Constants.PARAM_JACOBIAN_MAP for the parameters in
-% self.estimatedParams only. This cell array lists the handles in the correct order according to the
-% order in self.estimatedParams and is rebuilt whenever self.estimatedParams is updated.
+% So instead, a local self.estimatedParamAnalyticJacobianMap property is built, which is a cell
+% array of the subset of Jacobian function handles in the full self.PARAM_ANALYTIC_JACOBIAN_MAP for
+% the parameters in self.estimatedParams only. This cell array lists the handles in the correct
+% order according to the order in self.estimatedParams and is rebuilt whenever self.estimatedParams
+% is updated.
 %
 % For example:
 % 
 % | self.estimatedParams = ["CD", "vWindx"]
-% | self.estimatedParamJacobianMap = { @computeDragJacobian, @computeWindJacobian }
+% | self.estimatedParamAnalyticJacobianMap = { @computeAnalyticDragJacobian, @computeAnalyticWindxJacobian }
 %
-% This way, the function handles in self.estimatedParamJacobianMap are already fully defined when
-% calling self.computeParamJacobian(), and since self.estimatedParamJacobianMap is a cell array, it
-% is simply iterated over.
+% This way, the function handles in self.estimatedParamAnalyticJacobianMap are already fully defined
+% when calling self.computeAnalyticParamJacobian(), and since self.estimatedParamAnalyticJacobianMap
+% is a cell array, it is simply iterated over. Similar reasoning applies for building
+% self.estimatedParamSourceMap.

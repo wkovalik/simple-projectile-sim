@@ -41,7 +41,7 @@ classdef DirectionSensorModel < SensorModel
             dir = [az; el];
         end
 
-        function H = computeStateJacobian(self, state)
+        function H = computeAnalyticStateJacobian(self, state)
             % Get projectile state
             x = state(1);
             y = state(2);
@@ -79,21 +79,21 @@ classdef DirectionSensorModel < SensorModel
             H(2, 3) = -(1 / drSensor) / elDenom;
         end
 
-        function H = computeDragJacobian(self, ~)
+        function H = computeAnalyticDragJacobian(self, ~)
             % Build Jacobian -----------------------------------------------------------------------
 
             % Partial derivatives w.r.t. CD
             H = zeros(self.N_MEASUREMENTS, 1);
         end
 
-        function H = computeWindxJacobian(self, ~)
+        function H = computeAnalyticWindxJacobian(self, ~)
             % Build Jacobian -----------------------------------------------------------------------
 
             % Partial derivatives w.r.t. vWindx
             H = zeros(self.N_MEASUREMENTS, 1);
         end
 
-        function H = computeWindyJacobian(self, ~)
+        function H = computeAnalyticWindyJacobian(self, ~)
             % Build Jacobian -----------------------------------------------------------------------
 
             % Partial derivatives w.r.t. vWindy

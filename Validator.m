@@ -30,12 +30,30 @@ classdef Validator
         function validArray = validateSize(array, validSize)
             % Checks if an array has an (m x n) size validSize
 
-            validSize = Validator.validateType(validSize, "double");
+            Validator.validateType(validSize, "double");
             
             if isequal(size(array), validSize)
                 validArray = array;
             else
                 error("Invalid input size. Must be size (%0.f, %0.f).", validSize(1), validSize(2))
+            end
+        end
+
+        function validStr = validateInEnum(str, validEnum)
+            % Checks if a string is part of an array enumeration of valid strings
+
+            Validator.validateType(str, "string");
+            Validator.validateType(validEnum, "string");
+
+            if any(strcmp(str, validEnum))
+                validStr = str;
+            else
+                errorStr1 = "Invalid input string. Must be one of the following options: [";
+                errorStr2 = sprintf("'%s', ", validEnum{1:(end - 1)});
+                errorStr3 = sprintf("'%s'].\n", validEnum{end});
+                errorStr = strcat(errorStr1, errorStr2, errorStr3);
+
+                error(errorStr)
             end
         end
     end

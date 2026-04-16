@@ -35,7 +35,7 @@ classdef RangeSensorModel < SensorModel
             R = (dxSensor ^ 2 + dySensor ^ 2 + dzSensor ^ 2) ^ 0.5;
         end
 
-        function H = computeStateJacobian(self, state)
+        function H = computeAnalyticStateJacobian(self, state)
             % Get projectile state
             x = state(1);
             y = state(2);
@@ -67,21 +67,21 @@ classdef RangeSensorModel < SensorModel
             H(1, 3) = dzSensor / R;
         end
 
-        function H = computeDragJacobian(~, ~)
+        function H = computeAnalyticDragJacobian(~, ~)
             % Build Jacobian -----------------------------------------------------------------------
 
             % Partial derivatives w.r.t. CD
             H = 0;
         end
 
-        function H = computeWindxJacobian(~, ~)
+        function H = computeAnalyticWindxJacobian(~, ~)
             % Build Jacobian -----------------------------------------------------------------------
             
             % Partial derivatives w.r.t. vWindx
             H = 0;
         end
 
-        function H = computeWindyJacobian(~, ~)
+        function H = computeAnalyticWindyJacobian(~, ~)
             % Build Jacobian -----------------------------------------------------------------------
             
             % Partial derivatives w.r.t. vWindy

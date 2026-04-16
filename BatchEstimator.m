@@ -51,8 +51,9 @@ classdef BatchEstimator < handle
             % Process list of sensor models
             self.sensorModelMap = dictionary();
             for i = 1:self.N_SENSOR_MODELS
-                % Pass handle for projectile model to each sensor model
+                % Pass handle for projectile and planet models to each sensor model
                 self.sensorModelList{i}.projectileModel = self.projectileModel;
+                self.sensorModelList{i}.earthModel = self.earthModel;
                 
                 % Add sensor model to map of sensor model IDs
                 self.sensorModelMap = insert( ...
@@ -144,11 +145,23 @@ classdef BatchEstimator < handle
                     self.addResidualToHistory(sensorID, sampleTime, measurementResidual, ii);  % Store measurement residual
                     
                     % Compute measurement Jacobians
-                    stateH = sensorModel.computeStateJacobian(sampleTimeState);
+                    switch sensorModel.jacobianMethod
+                        case "numeric"
+                            stateH = sensorModel.computeNumericStateJacobian(sampleTimeState);
+                        case "analytic"
+                            stateH = sensorModel.computeAnalyticStateJacobian(sampleTimeState);
+                    end
+
                     mappedStateH = stateH * sampleTimeStateSTM;
 
                     if ~isempty(self.estimatedParams)
-                        paramH = sensorModel.computeParamJacobian(sampleTimeState);
+                        switch sensorModel.jacobianMethod
+                            case "numeric"
+                                paramH = sensorModel.computeNumericParamJacobian(sampleTimeState);
+                            case "analytic"
+                                paramH = sensorModel.computeAnalyticParamJacobian(sampleTimeState);
+                        end
+
                         mappedParamH = stateH * sampleTimeParamSTM + paramH;
                     else
                         mappedParamH = [];

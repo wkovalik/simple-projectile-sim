@@ -4,14 +4,11 @@ classdef Constants
 
         HISTORY_BUFFER_LEN = 1E+05;
 
-        INTERP_METHOD = "linear";
-        EXTRAP_METHOD = "linear";  % See Note 2
-
-        PARAM_JACOBIAN_MAP = dictionary( ...
-                                 "CD",     @computeDragJacobian,  ...
-                                 "vWindx", @computeWindxJacobian, ...
-                                 "vWindy", @computeWindyJacobian ...
-                             );
+        DEFAULT_INTERP_METHOD = "linear";
+        DEFAULT_EXTRAP_METHOD = "linear";  % See Note 2
+        
+        DEFAULT_JACOBIAN_METHOD = "numeric";
+        JACOBIAN_PERTURBATION_FACTOR = 1E-04;
 
         MAX_ESTIMATOR_ITERATIONS = 5;
     end
