@@ -1,8 +1,8 @@
 IMPLEMENTATION TODOs
 
 TODO: Sequential/Kalman filter
-TODO: Numerical diff Jacobian
-TODO: Auto diff Jacobian
+TODO: Auto diff Jacobian (only if necessary)
+TODO: Histogram/probability density plot for measurement residuals
 
 
 

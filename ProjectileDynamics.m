@@ -18,11 +18,15 @@ classdef ProjectileDynamics < handle
     properties (Constant)
         PARAM_SOURCE_MAP = dictionary( ...
                                  "CD",     "projectile", ...
+                                 "rho0",   "earth",      ...
+                                 "H",      "earth",      ...
                                  "vWindx", "earth",      ...
                                  "vWindy", "earth"       ...
                              );
         PARAM_ANALYTIC_JACOBIAN_MAP = dictionary( ...
                                           "CD",     @computeAnalyticDragJacobian,  ...
+                                          "rho0",   @(x) 0,                        ...
+                                          "H",      @(x) 0,                        ...
                                           "vWindx", @computeAnalyticWindxJacobian, ...
                                           "vWindy", @computeAnalyticWindyJacobian  ...
                                       );
@@ -59,6 +63,7 @@ classdef ProjectileDynamics < handle
 
         function [Fx, Fy, Fz] = projectileAeroModel(self, state)
             % Get projectile state
+            z = state(3);
             vx = state(4);
             vy = state(5);
             vz = state(6);
@@ -68,9 +73,11 @@ classdef ProjectileDynamics < handle
             CD = self.projectile.params.CD.value;
             
             % Get planet parameters
-            rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
+
+            % Compute atmospheric density
+            rho = self.earth.computeAtmosphericDensity(-z);
             
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
@@ -225,9 +232,11 @@ classdef ProjectileDynamics < handle
             CD = self.projectile.params.CD.value;
 
             % Get planet parameters
-            rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
+
+            % Compute atmospheric density
+            rho = self.earth.computeAtmosphericDensity(-z);
 
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
@@ -310,9 +319,11 @@ classdef ProjectileDynamics < handle
             S = self.projectile.params.S.value;
 
             % Get planet parameters
-            rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
+
+            % Compute atmospheric density
+            rho = self.earth.computeAtmosphericDensity(-z);
 
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
@@ -341,9 +352,11 @@ classdef ProjectileDynamics < handle
             CD = self.projectile.params.CD.value;
 
             % Get planet parameters
-            rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
+
+            % Compute atmospheric density
+            rho = self.earth.computeAtmosphericDensity(-z);
 
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;
@@ -372,9 +385,11 @@ classdef ProjectileDynamics < handle
             CD = self.projectile.params.CD.value;
 
             % Get planet parameters
-            rho = self.earth.params.rho.value;
             vWindx = self.earth.params.vWindx.value;
             vWindy = self.earth.params.vWindy.value;
+
+            % Compute atmospheric density
+            rho = self.earth.computeAtmosphericDensity(-z);
 
             % Compute atmosphere-relative velocities
             vInfx = vx - vWindx;

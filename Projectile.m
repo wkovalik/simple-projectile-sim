@@ -27,6 +27,14 @@ classdef Projectile < handle
             end
         end
 
+        % function updateInterpolatedParams(self, stateVector)
+        %     if nargin == 1
+        %         stateVector = self.state.vector;
+        %     end
+        % 
+        %     self.params.CD.updateValue()
+        % end
+
         % Setters ==================================================================================
         function set.time(self, time)
             self.time = Validator.validateType(time, "double");

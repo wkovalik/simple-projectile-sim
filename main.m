@@ -3,7 +3,7 @@ clear; clc; close all;
 rng(0);
 
 initSimTime = 0;    % (s) Initial time of truth simulation
-finalSimTime = 10;  % (s) Final time of truth simulation
+finalSimTime = 20;  % (s) Final time of truth simulation
 
 estimateTime = 0;  % (s) Time at which you want to estimate state
 
@@ -20,9 +20,11 @@ truthProjectile.params.m.value  = 0.145;                 % (kg)
 truthProjectile.params.S.value  = (pi / 4) * 0.075 ^ 2;  % (m^2)
 truthProjectile.params.CD.value = 0.15;
 
+% truthProjectile.params.CD.valueLookupTable = [linspace(0, 60, 7); linspace(0.15, 0.15, 7)]';
+
 % Define initial projectile state
 truthProjectile.time = initSimTime;
-truthProjectile.state.vector = [0; 0; 0; 39.5; 0; -39.75];  % (m; m; m; m/s; m/s; m/s)
+truthProjectile.state.vector = [0; 0; 0; 395; 0; -397.5];  % (m; m; m; m/s; m/s; m/s)
 
 % Create truth planet ------------------------------------------------------------------------------
 truthEarth = Earth();
@@ -68,11 +70,12 @@ integrator.stepPeriod = 0.01;  % (s)
 % Create truth propagator --------------------------------------------------------------------------
 truthPropagator = Propagator(truthProjectileDynamics, integrator);
 
-% Add any sensors
+% % Add any sensors
 truthPropagator.addSensor(rangeSensor);
 truthPropagator.addSensor(directionSensor);
 
 % Choose propagation option
+% truthPropagator.selectPropagator("stateOnly");  % Option to only propagate state
 truthPropagator.selectPropagator("stateWithSensors");  % Option to take sensor measurements during propagation
 
 % Propagate truth trajectory -----------------------------------------------------------------------
@@ -92,18 +95,24 @@ projectileModel = Projectile();
 % Define projectile params and covariance (only required for estimated parameters)
 projectileModel.params.m.value  = 0.145;                 % (kg)
 projectileModel.params.S.value  = (pi / 4) * 0.075 ^ 2;  % (m^2)
-projectileModel.params.CD.value = 0.20;
-projectileModel.params.CD.covar = 0.1 ^ 2;
+projectileModel.params.CD.value = 0.15;
+% projectileModel.params.CD.value = 0.20;
+% projectileModel.params.CD.covar = 0.1 ^ 2;
 
 % Define initial projectile state and covariance
 projectileModel.time = initSimTime;
-projectileModel.state.vector = [0; 0; 0; 40; 0; -40];                     % (m; m; m; m/s; m/s; m/s)
-projectileModel.state.covar = diag([0.1; 0.1; 0.1; 0.5; 0.5; 0.5] .^ 2);  % (m; m; m; m/s; m/s; m/s)^2
+projectileModel.state.vector = [0; 0; 0; 400; 0; -400];             % (m; m; m; m/s; m/s; m/s)
+projectileModel.state.covar = diag([0.1; 0.1; 0.1; 5; 5; 5] .^ 2);  % (m; m; m; m/s; m/s; m/s)^2
 
 % Create planet model ------------------------------------------------------------------------------
 earthModel = Earth();
 
 % Define planet parameters and covariance (only required for estimated parameters)
+earthModel.params.rho0.value = 1.5;      % (kg/m^3)
+earthModel.params.H.value = 8000;        % (m)
+earthModel.params.rho0.covar = 0.5 ^ 2;  % (kg/m^3)^2
+earthModel.params.H.covar = 1000;        % (m)
+
 earthModel.params.vWindx.value = 0;       % (m/s)
 earthModel.params.vWindy.value = 0;       % (m/s)
 earthModel.params.vWindx.covar = 25 ^ 2;  % (m/s)^2
@@ -139,14 +148,16 @@ directionSensorModel.noiseCovar = diag(deg2rad([0.1; 0.1]) .^ 2);  % (rad; rad)^
 % === Batch Algorithm ==============================================================================
 
 % Set parameters to be estimated -------------------------------------------------------------------
-projectileModel.params.CD.isEstimated = true;
+% projectileModel.params.CD.isEstimated = true;
+earthModel.params.rho0.isEstimated = true;
+earthModel.params.H.isEstimated = true;
 earthModel.params.vWindx.isEstimated = true;
 earthModel.params.vWindy.isEstimated = true;
 
 % Set Jacobian computation methods -----------------------------------------------------------------
-projectileModelDynamics.jacobianMethod = "analytic";
-rangeSensorModel.jacobianMethod = "analytic";
-directionSensorModel.jacobianMethod = "analytic";
+projectileModelDynamics.jacobianMethod = "numeric";
+rangeSensorModel.jacobianMethod = "numeric";
+directionSensorModel.jacobianMethod = "numeric";
 
 % Create batch estimator ---------------------------------------------------------------------------
 estimator = BatchEstimator(projectileModelDynamics, integrator, { rangeSensorModel, directionSensorModel });
@@ -280,51 +291,51 @@ legend(["Estimate", "Truth"])
 
 sgtitle("Projectile Velocity Convergence")
 
-% Plot parameter estimate convergence --------------------------------------------------------------
-
-% Get estimated parameters (after each iteration of estimator)
-estimatedCDHistory = zeros(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);
-estimatedWindHistory = zeros(2, Constants.MAX_ESTIMATOR_ITERATIONS + 1);
-
-for ii = 1:(Constants.MAX_ESTIMATOR_ITERATIONS + 1)
-    estimatedCDHistory(ii) = estimator.estimatedParamHistory{ii}(1);
-    estimatedWindHistory(:, ii) = estimator.estimatedParamHistory{ii}(2:3);
-end
-
-% Plot
-figure(4)
-
-subplot(1, 3, 1)
-plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedCDHistory, 'rx-', "LineWidth", 1.5)
-hold on
-plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthProjectile.params.CD.value * [1, 1], 'k', "LineWidth", 0.5)
-hold off
-xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
-xlabel("Iterations")
-ylabel("C_D")
-legend(["Estimate", "Truth"])
-
-subplot(1, 3, 2)
-plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedWindHistory(1, :), 'rx-', "LineWidth", 1.5)
-hold on
-plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthEarth.params.vWindx.value * [1, 1], 'k', "LineWidth", 0.5)
-hold off
-xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
-xlabel("Iterations")
-ylabel("vWind_x (m/s)")
-legend(["Estimate", "Truth"])
-
-subplot(1, 3, 3)
-plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedWindHistory(2, :), 'rx-', "LineWidth", 1.5)
-hold on
-plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthEarth.params.vWindy.value * [1, 1], 'k', "LineWidth", 0.5)
-hold off
-xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
-xlabel("Iterations")
-ylabel("vWind_y (m/s)")
-legend(["Estimate", "Truth"])
-
-sgtitle("Parameter Convergence")
+% % Plot parameter estimate convergence --------------------------------------------------------------
+% 
+% % Get estimated parameters (after each iteration of estimator)
+% estimatedCDHistory = zeros(1, Constants.MAX_ESTIMATOR_ITERATIONS + 1);
+% estimatedWindHistory = zeros(2, Constants.MAX_ESTIMATOR_ITERATIONS + 1);
+% 
+% for ii = 1:(Constants.MAX_ESTIMATOR_ITERATIONS + 1)
+%     estimatedCDHistory(ii) = estimator.estimatedParamHistory{ii}(1);
+%     estimatedWindHistory(:, ii) = estimator.estimatedParamHistory{ii}(2:3);
+% end
+% 
+% % Plot
+% figure(4)
+% 
+% subplot(1, 3, 1)
+% plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedCDHistory, 'rx-', "LineWidth", 1.5)
+% hold on
+% plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthProjectile.params.CD.value * [1, 1], 'k', "LineWidth", 0.5)
+% hold off
+% xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
+% xlabel("Iterations")
+% ylabel("C_D")
+% legend(["Estimate", "Truth"])
+% 
+% subplot(1, 3, 2)
+% plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedWindHistory(1, :), 'rx-', "LineWidth", 1.5)
+% hold on
+% plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthEarth.params.vWindx.value * [1, 1], 'k', "LineWidth", 0.5)
+% hold off
+% xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
+% xlabel("Iterations")
+% ylabel("vWind_x (m/s)")
+% legend(["Estimate", "Truth"])
+% 
+% subplot(1, 3, 3)
+% plot(0:Constants.MAX_ESTIMATOR_ITERATIONS, estimatedWindHistory(2, :), 'rx-', "LineWidth", 1.5)
+% hold on
+% plot([0, Constants.MAX_ESTIMATOR_ITERATIONS], truthEarth.params.vWindy.value * [1, 1], 'k', "LineWidth", 0.5)
+% hold off
+% xlim([0, Constants.MAX_ESTIMATOR_ITERATIONS])
+% xlabel("Iterations")
+% ylabel("vWind_y (m/s)")
+% legend(["Estimate", "Truth"])
+% 
+% sgtitle("Parameter Convergence")
 
 % Plot measurment residuals ------------------------------------------------------------------------
 

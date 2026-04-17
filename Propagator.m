@@ -85,7 +85,7 @@ classdef Propagator < handle
         function propagateState(self, finalTime)
             % Preallocate time and projectile state histories
             timeHistory = zeros(1, Constants.HISTORY_BUFFER_LEN);
-            stateHistory = zeros(self.N_PROJECTILE_STATES, Constants.BUFFER_LEN);  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
+            stateHistory = zeros(self.N_PROJECTILE_STATES, Constants.HISTORY_BUFFER_LEN);  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
             
             % Set initial time and projectile state
             time = self.projectile.time;
@@ -103,9 +103,9 @@ classdef Propagator < handle
                 [nextTime, nextState] = self.integrator.step(time, state);
 
                 % TODO: Implement proper event checking
-                % if nextState(3) > 0
-                %     break
-                % end
+                if nextState(3) > 0
+                    break
+                end
 
                 time = nextTime;
                 state = nextState;
