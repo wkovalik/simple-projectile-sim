@@ -1,18 +1,21 @@
 classdef Constants
     properties (Constant)
-        TIME_TOLERANCE = 1E-09;  % See Note 1
+        DEFAULT_TIME_TOL = 1E-09;  % See Note 1
 
-        HISTORY_BUFFER_LEN = 1E+05;
+        DEFAULT_HISTORY_LEN = 1E+05;
 
         DEFAULT_INTERP_METHOD = "linear";
         DEFAULT_EXTRAP_METHOD = "linear";  % See Note 2
         
-        DEFAULT_JACOBIAN_METHOD = "numeric";
-        JACOBIAN_PERTURBATION_FACTOR = 1E-04;
+        DEFAULT_JACOBIAN_PERT_FACTOR = 1E-04;
 
-        MAX_ESTIMATOR_ITERATIONS = 5;
+        DEFAULT_MAX_ITERS = 10;
+        DEFAULT_CONVERGENCE_TOL = 1E-04;
+
+        VALIDATE_FLAG = true;  % Keep on unless you need faster performance
     end
 end
+
 
 % Note 1:
 %

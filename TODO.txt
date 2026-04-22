@@ -1,39 +1,23 @@
-IMPLEMENTATION TODOs
+LARGE TODOs
 
-TODO: Sequential/Kalman filter
-TODO: Auto diff Jacobian (only if necessary)
-TODO: Histogram/probability density plot for measurement residuals
-
+TODO: Implement sequential/Kalman filter
+TODO: Create histogram/probability density plot for measurement residuals
 
 
-CODE TODOs
+MEDIUM TODOs
 
-TODO: Remove as many calls to dictionary and struct accesses (basically strcmps) as possible (array/vectorize as much as possible!)
-- Vectorize projectile and planet params
-- Enumerate stuff like {1: "numeric", 2: "analytic"}
-- Turn ID-keyed dictionaries into ordered lists based on estimated param order, sensor order, etc.
-   {"2": IMU, ..., "97": ranger, ..., "123": DF} -> {IMU, ranger, DF}
-
-TODO: Do solid pass of all property and method attributes
-TODO: Do solid pass of all getter and setter methods (as well as making properties Dependent
-      or "psudeo"-Dependent (see estimatedParamJacobianMap)
-TODO: Do solid vectorizing/matrixing pass
-
-TODO: Abstract wherever you can (ProjectileState < State? BatchEstimator < Estimator?)
-
-TODO: Add tempStorage to deriv functions. That way not recomputing a ton of variables on each
-      force model or Jacobian call
-
-TODO: Make Validator functions return logical isValid (or throw error) rather than value itself
+TODO: See if can optimize further using for-loops rather than vector indexing (e.g., in BatchEstimator, ProjectileDynamics)
+TODO: (BatchEstimator) Currently assumes init projectile time = estimate time epoch. Need to propagate if not
+TODO: (Earth, Projectile) Make a static Kernel class. Then set kernel property to choose which kernel to use
+TODO: (Propagator) Implement a history length increase function (right now, will throw error if reach history limit)
+TODO: (Propagator) Implement proper event checking
+TODO: (ProjectileDynamics) Add tempStorage to derivative functions. That way not recomputing a ton of variables on each force model or Jacobian call
 
 
+SMALL TODOs
 
-ESTIMATOR TODOs
-
-TODO: propagator.getProjectileAt(time) to update projectile dynState, then pass that
-to various funcs? (e.g., sensors for taking samples) Rather than passing dynState
-directly. Also update projectile dynState in propagation loop? Philosophy is should
-pass projectile and earth, not abstract state vector
-TODO: Handle cross-covariance output in state and params (e.g., CX0 and CX2)
-TODO: projectile.updateState(time, state)
-TODO: projectile.updateParams() for aero coeffs and derivs during propagation
+TODO: Do pass of all property and method attributes
+TODO: Do pass of all getter and setter methods
+TODO: Abstract wherever you can (BatchEstimator < Estimator?)
+TODO: Make Validator functions return logical isValid (or just throw error) rather than value itself
+TODO: Implement auto diff Jacobian (only if absolutely necessary)

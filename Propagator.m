@@ -1,116 +1,71 @@
 classdef Propagator < handle
+    % TODO: Implement a history length increase function (right now, will throw error if reach history limit)
+    % TODO: Implement proper event checking
+
     properties
-        propagate
-        
         projectileDynamics
-
-        projectile
-        earth
-
         integrator
-
-        stateInterpolant
-        stateSTMInterpolant
-        paramSTMInterpolant
-
-        interpMethod
-        extrapMethod
-
-        estimatedParams
-
-        sensorList
-        sensorSampleHistory
     end
 
-    properties (Dependent)
-        N_PROJECTILE_STATES
-        N_ESTIMATED_PARAMS
-        N_SENSORS
-    end
 
     methods
         % Constructor ==============================================================================
-        function self = Propagator(projectileDynamics, integrator)
-            % Initialize propagate method (i.e., as unset, so error if try to call without setting)
-            self.propagate = @(propTime) error("Propagator method has not been selected. Select method by calling Propagator.selectPropagator(method).");
-            
-            % Set handle for projectile dynamics
-            self.projectileDynamics = projectileDynamics;
-            
-            % Set handles for projectile and planet
-            self.projectile = self.projectileDynamics.projectile;
-            self.earth = self.projectileDynamics.earth;
 
-            % Set handle for integrator
-            self.integrator = integrator;
-            
-            % Set initial interpolant methods
-            self.interpMethod = Constants.DEFAULT_INTERP_METHOD;
-            self.extrapMethod = Constants.DEFAULT_EXTRAP_METHOD;
-            
-            % Initialize list of parameters to be estimated (used to compute parameter STM)
-            self.estimatedParams = [];
-            
-            % Initialize list of sensors and measurement histories (used to take sensor measurements)
-            self.sensorList = {};
-            self.sensorSampleHistory = dictionary();
+        function self = Propagator(projectileDynamics, integrator)
+            % Set handles for projectile dynamics and integrator
+            if nargin == 2
+                self.projectileDynamics = projectileDynamics;
+                self.integrator = integrator;
+
+            elseif nargin == 1
+                self.projectileDynamics = projectileDynamics;
+                self.integrator = Integrator();
+
+            else
+                error("Not enough input parameters.")
+            end
         end
 
 
         % Propagate methods ========================================================================
-        function selectPropagator(self, method)
-            Validator.validateInEnum(method, ["stateOnly", "stateAndSTM", "stateWithSensors"]);
+        
+        function [timeHistory, stateHistory] = propagate(self, finalTime)
+            % Set integrator derivative function
+            self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
 
-            switch method
-                % Propagate projectile state vector only
-                case "stateOnly"
-                    self.propagate = @self.propagateState;
-                    self.integrator.stateDerivFn = ...
-                        @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
-                
-                % Propagate projectile state vector, state STM, and estimated parameter STM (if any)
-                case "stateAndSTM"
-                    self.propagate = @self.propagateStateAndSTM;
-                    self.integrator.stateDerivFn = ...
-                        @(varargin) self.projectileDynamics.computeStateAndSTMDeriv(varargin{:});  % See Note 1
-                
-                % Propagate projectile state vector and take sensor measurements along trajectory
-                case "stateWithSensors"
-                    self.propagate = @self.propagateStateWithSensors;
-                    self.integrator.stateDerivFn = ...
-                        @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
-            end
-        end
+            % Preallocate time and state histories
+            nHistoryLen = Constants.DEFAULT_HISTORY_LEN;
+            nStates = self.projectileDynamics.projectile.nStates;
 
-        function propagateState(self, finalTime)
-            % Preallocate time and projectile state histories
-            timeHistory = zeros(1, Constants.HISTORY_BUFFER_LEN);
-            stateHistory = zeros(self.N_PROJECTILE_STATES, Constants.HISTORY_BUFFER_LEN);  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
+            timeHistory = zeros(1, nHistoryLen);
+            stateHistory = zeros(nStates, nHistoryLen);
             
-            % Set initial time and projectile state
-            time = self.projectile.time;
-            state = self.projectile.state.vector;
+            % Set initial time and state
+            time = self.projectileDynamics.projectile.time;
+            state = self.projectileDynamics.projectile.state;
             
-            % Store initial time and projectile state
+            % Store initial time and state
             timeHistory(1) = time;
             stateHistory(:, 1) = state;
-
-            % Main propagation loop ----------------------------------------------------------------
+            
+            % --------------------------------------------------------------------------------------
+            % Begin propagation loop
+            % --------------------------------------------------------------------------------------
 
             nSteps = 0;
-            while time < (finalTime - Constants.TIME_TOLERANCE)  % See Constants:Note 1
+            while time < (finalTime - Constants.DEFAULT_TIME_TOL)  % See Constants:Note 1
                 % Step to next time and state
                 [nextTime, nextState] = self.integrator.step(time, state);
 
-                % TODO: Implement proper event checking
-                if nextState(3) > 0
+                % Detect ground impact
+                if (nextTime > 5) && (nextState(3) > 0)
                     break
                 end
 
                 time = nextTime;
                 state = nextState;
                 
-                % Store next time and projectile state
+                % Store next time and state
                 nSteps = nSteps + 1;
                 
                 timeHistory(nSteps + 1) = time;
@@ -118,332 +73,216 @@ classdef Propagator < handle
             end
 
             % --------------------------------------------------------------------------------------
+            % End propagation loop
+            % --------------------------------------------------------------------------------------
             
-            % Update projectile with final time and state
-            self.projectile.updateState(time, state);
-            
-            % Remove all unused entries in time and projectile state histories
+            % Remove all unused entries in time and state histories
             timeHistory((nSteps + 2):end) = [];
             stateHistory(:, (nSteps + 2):end) = [];
-            
-            % Create interpolant for projectile trajectory
-            self.createStateInterpolant(timeHistory, stateHistory);
         end
 
-        function propagateStateAndSTM(self, finalTime)
-            % Preallocate time, state, and STM histories
-            timeHistory = zeros(1, Constants.HISTORY_BUFFER_LEN);
-            stateHistory = zeros(self.N_PROJECTILE_STATES, Constants.HISTORY_BUFFER_LEN);
 
-            stateSTMHistory = zeros(self.N_PROJECTILE_STATES ^ 2, Constants.HISTORY_BUFFER_LEN);
-            if ~isempty(self.estimatedParams)
-                paramSTMHistory = zeros(self.N_PROJECTILE_STATES * self.N_ESTIMATED_PARAMS, Constants.HISTORY_BUFFER_LEN);
-            else
+        function [timeHistory, stateHistory, stateSTMHistory, paramSTMHistory] = propagateWithSTM(self, finalTime)
+            % Set integrator derivative function
+            self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeAugStateDeriv(varargin{:});  % See Note 1
+            
+            % Preallocate time and state histories
+            nHistoryLen = Constants.DEFAULT_HISTORY_LEN;
+            nStates = self.projectileDynamics.projectile.nStates;
+            nEstimatedParams = self.projectileDynamics.projectile.nEstimatedParams + self.projectileDynamics.planet.nEstimatedParams;
+            includeParamSTM = logical(nEstimatedParams);
+
+            if ~includeParamSTM
+                paramSTM = [];
                 paramSTMHistory = [];
-            end  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
+            end
+
+            timeHistory = zeros(1, nHistoryLen);
+            stateHistory = zeros(nStates, nHistoryLen);
             
-            % Set initial time and projectile state
-            time = self.projectile.time;
-            state = self.projectile.state.vector;
+            % Preallocate STM histories
+            stateSTMHistory = eye(nStates ^ 2, nHistoryLen);
+            if includeParamSTM
+                paramSTMHistory = eye(nStates * nEstimatedParams, nHistoryLen);
+            end
+
+            % Set initial time and state
+            time = self.projectileDynamics.projectile.time;
+            state = self.projectileDynamics.projectile.state;
             
-            % Set initial state STM
-            stateSTM = eye(self.N_PROJECTILE_STATES);
+            % Set initial STMs
+            stateSTM = eye(nStates);
             stateSTM = stateSTM(:);
             
-            % Set initial parameter STM (if any estimated parameters)
-            if ~isempty(self.estimatedParams)
-                paramSTM = zeros(self.N_PROJECTILE_STATES, self.N_ESTIMATED_PARAMS);
+            if includeParamSTM
+                paramSTM = zeros(nStates, nEstimatedParams);
                 paramSTM = paramSTM(:);
-            else
-                paramSTM = [];
             end
             
-            % Concatenate into augmented initial state
+            % Create augmented state
             augState = [state; stateSTM; paramSTM];
             
-            % Store initial time, state, and STMs
+            % Store initial time and state
             timeHistory(1) = time;
             stateHistory(:, 1) = state;
 
+            % Store initial STMs
             stateSTMHistory(:, 1) = stateSTM;
-            if ~isempty(self.estimatedParams)
+            if includeParamSTM
                 paramSTMHistory(:, 1) = paramSTM;
             end
 
-            % Main propagation loop ----------------------------------------------------------------
-            
+            % --------------------------------------------------------------------------------------
+            % Begin propagation loop
+            % --------------------------------------------------------------------------------------
+
             nSteps = 0;
-            while time < (finalTime - Constants.TIME_TOLERANCE)  % See Constants:Note 1
+            while time < (finalTime - Constants.DEFAULT_TIME_TOL)  % See Constants:Note 1
                 % Step to next time and augmented state
                 [nextTime, nextAugState] = self.integrator.step(time, augState);
                 
-                % Deconcatenate augmented state
-                nextState = nextAugState(1:self.N_PROJECTILE_STATES);
+                % Extract next state
+                nextState = nextAugState(1:nStates);
 
-                nextStateSTM = nextAugState(self.N_PROJECTILE_STATES + (1:self.N_PROJECTILE_STATES ^ 2));
-                if ~isempty(self.estimatedParams)
-                    nextParamSTM = nextAugState((self.N_PROJECTILE_STATES + self.N_PROJECTILE_STATES ^ 2) + (1:(self.N_PROJECTILE_STATES * self.N_ESTIMATED_PARAMS)));
+                % Detect ground impact
+                if (nextTime > 5) && (nextState(3) > 0)
+                    break
                 end
-
-                % TODO: Implement proper event checking
-                % if nextState(3) > 0
-                %     break
-                % end
 
                 time = nextTime;
                 state = nextState;
-
-                stateSTM = nextStateSTM;
-                if ~isempty(self.estimatedParams)
-                    paramSTM = nextParamSTM;
-                end
-
                 augState = nextAugState;
 
-                % Store next time, state, and STMs
+                % Extract STMs
+                stateSTM = augState(nStates + (1:nStates ^ 2));
+                if includeParamSTM
+                    paramSTM = augState((nStates + nStates ^ 2 + 1):end);
+                end
+                
+                % Store next time and state
                 nSteps = nSteps + 1;
                 
                 timeHistory(nSteps + 1) = time;
                 stateHistory(:, nSteps + 1) = state;
 
+                % Store STMs
                 stateSTMHistory(:, nSteps + 1) = stateSTM;
-                if ~isempty(self.estimatedParams)
+                if includeParamSTM
                     paramSTMHistory(:, nSteps + 1) = paramSTM;
                 end
             end
 
             % --------------------------------------------------------------------------------------
+            % End propagation loop
+            % --------------------------------------------------------------------------------------
             
-            % Update projectile with final time and state
-            self.projectile.updateState(time, state);
-            
-            % Remove all unused entries in time, state, and STM histories
+            % Remove all unused entries in time and state histories
             timeHistory((nSteps + 2):end) = [];
             stateHistory(:, (nSteps + 2):end) = [];
 
+            % Remove all unused entries in STM histories
             stateSTMHistory(:, (nSteps + 2):end) = [];
-            if ~isempty(self.estimatedParams)
+            if includeParamSTM
                 paramSTMHistory(:, (nSteps + 2):end) = [];
             end
-            
-            % Create interpolants for projectile trajectory and STM histories
-            self.createStateInterpolant(timeHistory, stateHistory);
-            self.createSTMInterpolant(timeHistory, stateSTMHistory, paramSTMHistory);
         end
 
-        function propagateStateWithSensors(self, finalTime)
-            % Preallocate time and projectile state histories
-            timeHistory = zeros(1, Constants.HISTORY_BUFFER_LEN);
-            stateHistory = zeros(self.N_PROJECTILE_STATES, Constants.HISTORY_BUFFER_LEN);  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
 
-            % Preallocate sensor measurement histories
-            self.initSensorSampleHistory();  % TODO: Implement a buffer increase function (right now, will throw error if reach history limit)
+        function [timeHistory, stateHistory, measHistory] = propagateWithSensors(self, finalTime, sensorArray)
+            % Throw warning if integrator step size is too coarse for sensor sampling rates
+            if Utils.isIntegratorStepTooCoarse(sensorArray, self.integrator.stepPeriod)
+                warning("Integrator step size is too coarse. At least one sensor will not accurately sample on time.")
+            end
             
-            % Set initial time and projectile state
-            time = self.projectile.time;
-            state = self.projectile.state.vector;
+            % Set integrator derivative function
+            self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
             
-            % Take initial sensor measurements (if needed)
-            self.checkSensors(time, state);
+            % Preallocate time and state histories
+            nHistoryLen = Constants.DEFAULT_HISTORY_LEN;
+            nStates = self.projectileDynamics.projectile.nStates;
+
+            timeHistory = zeros(1, nHistoryLen);
+            stateHistory = zeros(nStates, nHistoryLen);
             
-            % Store initial time and projectile state
+            % Set initial time and state
+            time = self.projectileDynamics.projectile.time;
+            state = self.projectileDynamics.projectile.state;
+            
+            % Store initial time and state
             timeHistory(1) = time;
             stateHistory(:, 1) = state;
+
+            % Preallocate sensor measurement history
+            nMeasMax = Utils.findLongestSensorMeas(sensorArray);
+            measHistory = zeros(2 + nMeasMax, nHistoryLen);
             
-            % Main propagation loop ----------------------------------------------------------------
+            % Take any initial sensor measurement(s)
+            nSamples = 0;
+            for i = 1:length(sensorArray)
+                sensor = sensorArray{i};
+
+                if sensor.shouldTakeMeasurement(time)
+                    sample = sensor.takeMeasurement(state);
+                    
+                    % Store sensor measurement(s)
+                    nSamples = nSamples + 1;
+
+                    measHistory(1, nSamples) = sensor.ID;
+                    measHistory(2, nSamples) = time;
+                    measHistory(2 + (1:length(sample)), nSamples) = sample;
+                end
+            end
+
+            % --------------------------------------------------------------------------------------
+            % Begin propagation loop
+            % --------------------------------------------------------------------------------------
 
             nSteps = 0;
-            while time < (finalTime - Constants.TIME_TOLERANCE)  % See Constants:Note 1
+            while time < (finalTime - Constants.DEFAULT_TIME_TOL)  % See Constants:Note 1
                 % Step to next time and state
                 [nextTime, nextState] = self.integrator.step(time, state);
 
-                % TODO: Implement proper event checking
-                if nextState(3) > 0
+                % Detect ground impact
+                if (nextTime > 5) && (nextState(3) > 0)
                     break
                 end
 
                 time = nextTime;
                 state = nextState;
                 
-                % Take sensor measurements (if needed)
-                self.checkSensors(time, state);
-                
-                % Store next time and projectile state
-                nSteps = nSteps + 1;
+                % Take any sensor measurement(s)
+                for i = 1:length(sensorArray)
+                    sensor = sensorArray{i};
 
+                    if sensor.shouldTakeMeasurement(time)
+                        sample = sensor.takeMeasurement(state);
+                        
+                        % Store sensor measurement(s)
+                        nSamples = nSamples + 1;
+
+                        measHistory(1, nSamples) = sensor.ID;
+                        measHistory(2, nSamples) = time;
+                        measHistory(2 + (1:length(sample)), nSamples) = sample;
+                    end
+                end
+                
+                % Store next time and state
+                nSteps = nSteps + 1;
+                
                 timeHistory(nSteps + 1) = time;
                 stateHistory(:, nSteps + 1) = state;
             end
 
             % --------------------------------------------------------------------------------------
+            % End propagation loop
+            % --------------------------------------------------------------------------------------
             
-            % Update projectile with final time and state
-            self.projectile.updateState(time, state);
-            
-            % Remove all unused entries in time and projectile state histories
+            % Remove all unused entries in time and state histories
             timeHistory((nSteps + 2):end) = [];
             stateHistory(:, (nSteps + 2):end) = [];
 
-            % Remove all unused entries in sensor measurement histories
-            for i = 1:self.N_SENSORS
-                sensor = self.sensorList{i};
-            
-                nSamples = self.sensorSampleHistory(sensor.sensorID).nSamples;
-                self.sensorSampleHistory(sensor.sensorID).timeHistory((nSamples + 1):end) = [];
-                self.sensorSampleHistory(sensor.sensorID).sampleHistory(:, (nSamples + 1):end) = [];
-            end
-            
-            % Create interpolant for projectile trajectory
-            self.createStateInterpolant(timeHistory, stateHistory);
-        end
-        
-
-        % Interpolant methods ======================================================================
-        function createStateInterpolant(self, timeHistory, stateHistory)
-            % Creates interpolant from state history array
-
-            self.stateInterpolant = griddedInterpolant(timeHistory, stateHistory', self.interpMethod, self.extrapMethod);
-        end
-
-        function state = getState(self, time)
-            % Gets interpolated state at desired time
-
-            state = self.stateInterpolant(time)';
-        end
-
-        function [timeHistory, stateHistory] = generateStateHistory(self, initTime, finalTime, timeStepOrNumPoints)
-            % Creates interpolated state history array
-
-            % Mode 1: User specifies time step between points in history
-            if timeStepOrNumPoints < (finalTime - initTime)
-                timeStep = timeStepOrNumPoints;
-                timeHistory = initTime:timeStep:finalTime;
-
-            % Mode 2: User specifies number of points in history (useful for plotting)
-            else
-                numOfPoints = timeStepOrNumPoints;
-                timeHistory = linspace(initTime, finalTime, numOfPoints);
-            end
-
-            stateHistory = self.getState(timeHistory);
-        end
-
-        function createSTMInterpolant(self, timeHistory, stateSTMHistory, paramSTMHistory)
-            % Creates interpolants of vectorized STMs from vectorized STM history arrays
-
-            self.stateSTMInterpolant = griddedInterpolant(timeHistory, stateSTMHistory', self.interpMethod, self.extrapMethod);
-            if ~isempty(self.estimatedParams)
-                self.paramSTMInterpolant = griddedInterpolant(timeHistory, paramSTMHistory', self.interpMethod, self.extrapMethod);
-            end
-        end
-
-        function [stateSTM, paramSTM] = getSTM(self, time)
-            % Gets interpolated matrix STMs at desired times
-
-            stateSTM = self.stateSTMInterpolant(time)';
-            stateSTM = reshape(stateSTM, [self.N_PROJECTILE_STATES, self.N_PROJECTILE_STATES]);
-
-            if ~isempty(self.estimatedParams)
-                paramSTM = self.paramSTMInterpolant(time)';
-                paramSTM = reshape(paramSTM, [self.N_PROJECTILE_STATES, self.N_ESTIMATED_PARAMS]);
-            else
-                paramSTM = [];
-            end
-        end
-
-
-        % Sensor methods ===========================================================================
-        function addSensor(self, sensor)
-            % Add new sensor to sensor list
-
-            self.sensorList(end + 1) = { sensor };
-        end
-
-        function checkSensors(self, time, state)
-            % Determines if any sensors are ready to take a new measurement, and if so, takes those measurements
-
-            for i = 1:self.N_SENSORS
-                sensor = self.sensorList{i};
-
-                if sensor.checkIfShouldSample(time)
-                    % Take new sensor measurement
-                    sensor.sampleMeasurement(time, state);
-                    
-                    % Add sensor measurement to respective history (according to sensor ID)
-                    self.addSampleToHistory(sensor);
-                end
-            end
-        end
-
-        function initSensorSampleHistory(self)
-            % Preallocate histories to store respective sensor measurements (according to sensor ID)
-
-            for i = 1:self.N_SENSORS
-                sensor = self.sensorList{i};
-
-                initHistory.nSamples = 0;
-                initHistory.timeHistory = zeros(1, Constants.HISTORY_BUFFER_LEN);
-                initHistory.sampleHistory = zeros(sensor.N_MEASUREMENTS, Constants.HISTORY_BUFFER_LEN);
-
-                self.sensorSampleHistory = insert(self.sensorSampleHistory, sensor.sensorID, initHistory);
-            end
-        end
-
-        function addSampleToHistory(self, sensor)
-            % Add new sensor measurement to respective history (according to sensor ID)
-
-            nSamples = self.sensorSampleHistory(sensor.sensorID).nSamples;
-            nSamples = nSamples + 1;
-
-            self.sensorSampleHistory(sensor.sensorID).nSamples = nSamples;
-            self.sensorSampleHistory(sensor.sensorID).timeHistory(nSamples) = sensor.sampleTime;
-            self.sensorSampleHistory(sensor.sensorID).sampleHistory(:, nSamples) = sensor.sampledMeasurement;
-        end
-
-
-        % Getters ==================================================================================
-        function N_PROJECTILE_STATES = get.N_PROJECTILE_STATES(self)
-            N_PROJECTILE_STATES = self.projectile.state.N_STATES;
-        end
-
-        function N_ESTIMATED_PARAMS = get.N_ESTIMATED_PARAMS(self)
-            N_ESTIMATED_PARAMS = length(self.estimatedParams);
-        end
-
-        function N_SENSORS = get.N_SENSORS(self)
-            N_SENSORS = length(self.sensorList);
-        end
-
-
-        % Setters ==================================================================================
-        function set.propagate(self, propagateFn)
-            self.propagate = Validator.validateType(propagateFn, "function_handle");
-        end
-
-        function set.projectile(self, projectile)
-            self.projectile = Validator.validateType(projectile, "Projectile");
-        end
-
-        function set.projectileDynamics(self, projectileDynamics)
-            self.projectileDynamics = Validator.validateType(projectileDynamics, "ProjectileDynamics");
-        end
-
-        function set.integrator(self, integrator)
-            self.integrator = Validator.validateType(integrator, "RK4Integrator");
-        end
-
-        function set.stateInterpolant(self, stateInterpolant)
-            self.stateInterpolant = Validator.validateType(stateInterpolant, "griddedInterpolant");
-        end
-
-        function set.interpMethod(self, interpMethod)
-            % TODO: Validate from enum of possible values
-            self.interpMethod = Validator.validateType(interpMethod, "string");
-        end
-
-        function set.extrapMethod(self, extrapMethod)
-            % TODO: Validate from enum of possible values
-            self.extrapMethod = Validator.validateType(extrapMethod, "string");
+            % Remove all unused entries in sensor measurement history
+            measHistory(:, (nSamples + 1):end) = [];
         end
     end
 end

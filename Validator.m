@@ -1,31 +1,63 @@
 classdef Validator
     methods (Static)
-        function validValue = validateType(value, validType)
-            % Checks if a value is of type validType
+        function validValue = validateType(value, validTypes)
+            % Checks if a value is of any type in validTypes
 
-            if ~isa(validType, "string")
-                error("Specified type must be a string.")
+            if ~isa(validTypes, "string")
+                error("Specified type(s) must be a string.")
             end
+            
+            if isscalar(validTypes)
+                if isa(value, validTypes)
+                    validValue = value;
+                else
+                    error("Invalid input. Must be type %s.", validTypes)
+                end
 
-            if isa(value, validType)
-                validValue = value;
             else
-                error("Invalid input. Must be type %s.", validType)
+                for i = 1:length(validTypes)
+                    if isa(value, validTypes(i))
+                        validValue = value;
+                        break
+                    end
+                    
+                    if i == length(validTypes)
+                        errorStr = "Invalid input type. Must be one of the following options: [";
+                        errorStr = strcat(errorStr, sprintf("'%s', ", validTypes{1:(end - 1)}));
+                        errorStr = strcat(errorStr, sprintf("'%s'].", validTypes{end}));
+        
+                        error(errorStr)
+                    end
+                end
             end
         end
 
-        function validStruct = validateStructArrayTypes(struct, validType)
-            % Checks if all elements of a struct are of type validType (hence the name struct
-            % "array", since all elements must be of a single type)
+
+        function validStruct = validateFieldTypes(struct, validTypes)
+            % Checks if all fields of a struct are of any type in validTypes
 
             fieldNames = fieldnames(struct);
             
             for i = 1:length(fieldNames)
-                Validator.validateType(struct.(fieldNames{i}), validType);
+                Validator.validateType(struct.(fieldNames{i}), validTypes);
             end
 
             validStruct = struct;
         end
+
+
+        function validArray = validateLength(array, validLen)
+            % Checks if an array has a length validLen (i.e., a (validLen, 1) size)
+
+            Validator.validateType(validLen, "double");
+            
+            if length(array) == validLen
+                validArray = array;
+            else
+                error("Invalid input length. Must be length %0.f.", validLen)
+            end
+        end
+
 
         function validArray = validateSize(array, validSize)
             % Checks if an array has an (m x n) size validSize
@@ -35,23 +67,31 @@ classdef Validator
             if isequal(size(array), validSize)
                 validArray = array;
             else
-                error("Invalid input size. Must be size (%0.f, %0.f).", validSize(1), validSize(2))
+                errorStr = "Invalid input size. Must be size (";
+                if length(validSize) > 1
+                    errorStr = strcat(errorStr, sprintf("%0.f, ", validSize(1:(end - 1))));
+                end
+                errorStr = strcat(errorStr, sprintf("%0.f).", validSize(end)));
+
+                error(errorStr)
             end
         end
 
-        function validStr = validateInEnum(str, validEnum)
-            % Checks if a string is part of an array enumeration of valid strings
+        
+        function validStr = validateString(str, validStrs)
+            % Checks if a string is inside an array of valid strings
 
             Validator.validateType(str, "string");
-            Validator.validateType(validEnum, "string");
+            Validator.validateType(validStrs, "string");
 
-            if any(strcmp(str, validEnum))
+            if any(strcmp(str, validStrs))
                 validStr = str;
             else
-                errorStr1 = "Invalid input string. Must be one of the following options: [";
-                errorStr2 = sprintf("'%s', ", validEnum{1:(end - 1)});
-                errorStr3 = sprintf("'%s'].\n", validEnum{end});
-                errorStr = strcat(errorStr1, errorStr2, errorStr3);
+                errorStr = "Invalid input string. Must be one of the following options: [";
+                if length(validStrs) > 1
+                    errorStr = strcat(errorStr, sprintf("'%s', ", validStrs{1:(end - 1)}));
+                end
+                errorStr = strcat(errorStr, sprintf("'%s'].", validStrs{end}));
 
                 error(errorStr)
             end
