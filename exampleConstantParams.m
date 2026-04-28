@@ -11,9 +11,9 @@ propagateTruthTrajectory();
 runEstimator();
 plotResults();
 
-load("trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
-load("sensorLog.mat", "measHistory");
-load("estimatorLog.mat", "output");
+load("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
+load("./log/sensorLog.mat", "measHistory");
+load("./log/estimatorLog.mat", "output");
 
 
 
@@ -89,8 +89,8 @@ function propagateTruthTrajectory()
     propTime = 30;
     [trueTimeHistory, trueStateHistory, measHistory] = propagator.propagateWithSensors(propTime, { rangeSensor, directionSensor });
     
-    save("trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
-    save("sensorLog.mat", "measHistory");
+    save("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
+    save("./log/sensorLog.mat", "measHistory");
 
     fprintf("Done.\n\n")
 end
@@ -171,14 +171,14 @@ function output = runEstimator()
     estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel });
     
     % Run estimator
-    load("sensorLog.mat", "measHistory");
+    load("./log/sensorLog.mat", "measHistory");
 
     % profile on -historysize 100000000
     output = estimator.solve(measHistory);
     % profile viewer
     % profile off
     
-    save("estimatorLog.mat", "output");
+    save("./log/estimatorLog.mat", "output");
 
     fprintf("Done.\n\n")
 end
@@ -187,9 +187,9 @@ end
 function plotResults()
     fprintf("Plotting results... \n")
 
-    load("trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
-    load("sensorLog.mat", "measHistory");
-    load("estimatorLog.mat", "output");
+    load("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
+    load("./log/sensorLog.mat", "measHistory");
+    load("./log/estimatorLog.mat", "output");
     
     % ----------------------------------------------------------------------------------------------
     
