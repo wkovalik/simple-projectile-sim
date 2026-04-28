@@ -92,7 +92,7 @@ classdef Earth < handle
                 self.windModel = windModel;
 
             else
-                error("Too many input parameters.")
+                error("Too many input arguments.")
 
             end
             

@@ -45,6 +45,13 @@ classdef Sensor < handle
             self.measNoiseCovar = zeros(self.nMeas);
         end
 
+
+        % Update methods ===========================================================================
+
+        function updateParams(self)
+            self.params = [];
+        end
+
         
         % Jacobian methods =========================================================================
 
@@ -201,10 +208,6 @@ classdef Sensor < handle
     end
 
     methods (Abstract)
-        % Update methods ===========================================================================
-
-        updateParams(self)
-        
         % Measurement methods ======================================================================
 
         takeMeasurement(self, state)

@@ -10,10 +10,6 @@ classdef BatchEstimator < handle
         integrator
         propagator
 
-        estimatedParams
-        estimatedProjectileParams
-        estimatedPlanetParams
-
         sensorModelArray
         sensorModelIDs
         sensorModelMap
@@ -37,7 +33,7 @@ classdef BatchEstimator < handle
             elseif nargin == 2
                 self.integrator = Integrator();
             else
-                error("Not enough inputs.")
+                error("Not enough input arguments. Requires at least projectileModelDynamics and sensorModelArray.")
             end
             
             % Create propagator
@@ -55,7 +51,7 @@ classdef BatchEstimator < handle
             self.sensorModelMap = dictionary();
 
             for i = 1:nSensorModels
-                % Pass handles for projectile and planet models to each sensor model
+                % Pass handles for projectile and planet models to each sensor model (necessary to compute Jacobians)
                 sensorModelArray{i}.projectile = self.projectileModel;
                 sensorModelArray{i}.planet = self.planetModel;
                 

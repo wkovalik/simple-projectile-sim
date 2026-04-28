@@ -66,12 +66,21 @@ function propagateTruthTrajectory()
     
     % ----------------------------------------------------------------------------------------------
 
+    % Create accelerometer sensor
+    accelerometerSensor = AccelerometerSensor(projectile, projectileDynamics);
+
+    accelerometerSensor.ID = 3;
+    accelerometerSensor.samplePeriod = 0.05;
+    accelerometerSensor.measNoiseCovar = 0.01 ^ 2;
+
+    % ----------------------------------------------------------------------------------------------
+
     % Create propagator (default integrator)
     propagator = Propagator(projectileDynamics);
     
     % Propagate truth trajectory (and take measurements along trajectory)
     propTime = 30;
-    [trueTimeHistory, trueStateHistory, measHistory] = propagator.propagateWithSensors(propTime, { rangeSensor, directionSensor });
+    [trueTimeHistory, trueStateHistory, measHistory] = propagator.propagateWithSensors(propTime, { rangeSensor, directionSensor, accelerometerSensor });
     
     save("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
     save("./log/sensorLog.mat", "measHistory");
@@ -130,11 +139,19 @@ function output = runEstimator()
     directionSensorModel.paramDefs.x.value = -1;
     
     directionSensorModel.updateParams();
+
+    % ----------------------------------------------------------------------------------------------
+
+    % Create accelerometer model
+    accelerometerSensorModel = AccelerometerSensor(projectileModel, projectileModelDynamics);
+
+    accelerometerSensorModel.ID = 3;
+    accelerometerSensorModel.measNoiseCovar = 0.01 ^ 2;
     
     % ----------------------------------------------------------------------------------------------
     
     % Create estimator (default integrator)
-    estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel });
+    estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
     
     % Run estimator
     load("./log/sensorLog.mat", "measHistory");
@@ -166,7 +183,7 @@ function plotResults()
     
     % Resample nominal trajectories for plotting
     nIterations = length(output.iterationData) - 1;
-    
+
     plotNomStateHistories = cell(1, nIterations + 1);
     for i = 1:(nIterations + 1)
         plotNomStateHistories{i} = Utils.resampleStateHistory(output.iterationData{i}.nomTimeHistory, output.iterationData{i}.nomStateHistory, plotTimeHistory);
@@ -175,22 +192,25 @@ function plotResults()
     % Get measurement histories
     rangeHistory = measHistory(2:end, measHistory(1, :) == 1);
     dirHistory = measHistory(2:end, measHistory(1, :) == 2);
+    accHistory = measHistory(2:end, measHistory(1, :) == 3);
     
     % Get measurement residual histories
     priorMeasResiduals = output.iterationData{1}.measResidualHistory;
     priorRangeResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 1);
     priorDirResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 2);
-    
+    priorAccResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 3);
+
     postMeasResiduals = output.iterationData{end}.measResidualHistory;
     postRangeResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 1);
     postDirResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 2);
-    
+    postAccResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 3);
+
     % Get convergence histories
     vHistory = output.stateHistory(4:6, :);
     vStdDevHistory = output.stateCovarHistory([22, 29, 36], :) .^ 0.5;
     vPlusHistory = vHistory + vStdDevHistory;
     vMinusHistory = vHistory - vStdDevHistory;
-    
+
     % ----------------------------------------------------------------------------------------------
 
     figure(1)
@@ -199,7 +219,7 @@ function plotResults()
     hold on
     for i = 1:(nIterations + 1)
         plotNomStateHistory = plotNomStateHistories{i};
-    
+
         if i == (nIterations + 1)
             plot3(plotNomStateHistory(1, :), plotNomStateHistory(2, :), -plotNomStateHistory(3, :), 'r', "LineWidth", 1.5)
         else
@@ -219,59 +239,72 @@ function plotResults()
     
     figure(2)
     
-    subplot(1, 3, 1)
+    subplot(2, 2, 1)
     plot(rangeHistory(1, :), rangeHistory(2, :), 'kx')
     xlabel("t (s)")
     ylabel("R (m)")
     
-    subplot(1, 3, 2)
+    subplot(2, 2, 2)
     plot(dirHistory(1, :), rad2deg(dirHistory(2, :)), 'kx')
     xlabel("t (s)")
     ylabel("\theta (deg)")
     
-    subplot(1, 3, 3)
+    subplot(2, 2, 3)
     plot(dirHistory(1, :), rad2deg(dirHistory(3, :)), 'kx')
     xlabel("t (s)")
     ylabel("\phi (deg)")
+
+    subplot(2, 2, 4)
+    plot(accHistory(1, :), accHistory(2, :), 'kx')
+    xlabel("t (s)")
+    ylabel("a_V (m/s^2)")
     
     sgtitle("Sensor Measurements")
     
     % ----------------------------------------------------------------------------------------------
     
     figure(3)
-    
-    subplot(1, 3, 1)
+
+    subplot(2, 2, 1)
     plot(priorRangeResiduals(1, :), priorRangeResiduals(2, :), 'rx')
     hold on
     plot(postRangeResiduals(1, :), postRangeResiduals(2, :), 'kx')
     hold off
     xlabel("t (s)")
     ylabel("R (m)")
-    
-    subplot(1, 3, 2)
+
+    subplot(2, 2, 2)
     plot(priorDirResiduals(1, :), rad2deg(priorDirResiduals(2, :)), 'rx')
     hold on
     plot(postDirResiduals(1, :), rad2deg(postDirResiduals(2, :)), 'kx')
     hold off
     xlabel("t (s)")
     ylabel("\theta (deg)")
-    
-    subplot(1, 3, 3)
+
+    subplot(2, 2, 3)
     plot(priorDirResiduals(1, :), rad2deg(priorDirResiduals(3, :)), 'rx')
     hold on
     plot(postDirResiduals(1, :), rad2deg(postDirResiduals(3, :)), 'kx')
     hold off
     xlabel("t (s)")
     ylabel("\phi (deg)")
-    
+
+    subplot(2, 2, 4)
+    plot(priorAccResiduals(1, :), priorAccResiduals(2, :), 'rx')
+    hold on
+    plot(postAccResiduals(1, :), postAccResiduals(2, :), 'kx')
+    hold off
+    xlabel("t (s)")
+    ylabel("a_V (m/s^2)")
+
     legend(["Prefit", "Postfit"], "location", "best")
-    
+
     sgtitle("Measurement Residuals")
-    
+
     % ----------------------------------------------------------------------------------------------
-    
+
     figure(4)
-    
+
     subplot(1, 3, 1)
     patch([0:nIterations, flip(0:nIterations)], [vPlusHistory(1, :), flip(vMinusHistory(1, :))], [1, 0.8, 0.8], "EdgeColor", "none")
     hold on

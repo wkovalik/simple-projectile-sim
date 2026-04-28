@@ -12,7 +12,7 @@ classdef ProjectileDynamics < handle
 
         function self = ProjectileDynamics(projectile, planet)
             if nargin ~= 2
-                error("Not enough input parameters.")
+                error("Not enough input arguments. Requires projectile and planet.")
             end
 
             self.projectile = projectile;
@@ -70,7 +70,8 @@ classdef ProjectileDynamics < handle
             vx = state(4);
             vy = state(5);
             vz = state(6);
-
+            
+            % TODO: Compute acceleration function?
             m = self.projectile.params(self.projectile.mIdx);
 
             FGrav = self.computeGravityForce();

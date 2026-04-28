@@ -74,7 +74,7 @@ classdef Projectile < handle
             elseif nargin == 1
                 self.aeroModel = aeroModel;
             else
-                error("Too many input parameters.")
+                error("Too many input arguments.")
             end
 
             self.updateModels();

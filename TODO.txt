@@ -1,11 +1,13 @@
 LARGE TODOs
 
+TODO: Create Monte Carlo simulation wrapper
 TODO: Implement sequential/Kalman filter
 TODO: Create histogram/probability density plot for measurement residuals
 
 
 MEDIUM TODOs
 
+TODO: Evaluate any sqrt or inv variables before runtime if possible (e.g., sensor Rinv, sqrtR)
 TODO: See if can optimize further using for-loops rather than vector indexing (e.g., in BatchEstimator, ProjectileDynamics)
 TODO: (BatchEstimator) Currently assumes init projectile time = estimate time epoch. Need to propagate if not
 TODO: (Earth, Projectile) Make a static Kernel class. Then set kernel property to choose which kernel to use
@@ -16,6 +18,7 @@ TODO: (ProjectileDynamics) Add tempStorage to derivative functions. That way not
 
 SMALL TODOs
 
+TODO: Validate all projectile, planet, projectileDynamics, propagator, integrator, etc. sets
 TODO: Do pass of all property and method attributes
 TODO: Do pass of all getter and setter methods
 TODO: Abstract wherever you can (BatchEstimator < Estimator?)

@@ -40,7 +40,7 @@ classdef ParamTableDef
                 obj.yIsEstimated = false(obj.nValues, 1);
             
             else
-                error("Not enough input parameters.")
+                error("Not enough input arguments. Requires at least xValues.")
             end
         end
 

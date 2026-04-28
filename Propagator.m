@@ -22,7 +22,7 @@ classdef Propagator < handle
                 self.integrator = Integrator();
 
             else
-                error("Not enough input parameters.")
+                error("Not enough input arguments. Requires at least projectileDynamics.")
             end
         end
 
