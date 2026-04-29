@@ -1,4 +1,4 @@
-classdef Constants
+classdef Settings
     properties (Constant)
         DEFAULT_TIME_TOL = 1E-09;  % See Note 1
 
@@ -12,7 +12,7 @@ classdef Constants
         DEFAULT_MAX_ITERS = 10;
         DEFAULT_CONVERGENCE_TOL = 1E-04;
 
-        VALIDATE_FLAG = true;  % Keep on unless you need faster performance
+        VALIDATE_FLAG = false;  % Keep on while developing. Turn off for faster performance.
     end
 end
 

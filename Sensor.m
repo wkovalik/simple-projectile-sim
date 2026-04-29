@@ -10,6 +10,8 @@ classdef Sensor < handle
         % considerParamCovar = [];
 
         measNoiseCovar = [];
+        invMeasNoiseCovar = [];
+        measNoiseStdDev = [];
 
         samplePeriod = 0;
         nextSampleTime = 0;
@@ -24,8 +26,6 @@ classdef Sensor < handle
 
     properties (Dependent, SetAccess = private)
         nParams
-
-        invMeasNoiseCovar
     end
     
     properties (Abstract, Constant)
@@ -62,7 +62,7 @@ classdef Sensor < handle
             H = zeros(nMeas, nStates);
 
             for i = 1:nStates
-                delta = Constants.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(state(i)));
+                delta = Settings.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(state(i)));
 
                 statePlus = state;
                 statePlus(i) = statePlus(i) + delta;
@@ -91,7 +91,7 @@ classdef Sensor < handle
                 paramIdx = self.projectile.estimatedParamIdxs(i);
                 param = self.projectile.params(paramIdx);
 
-                delta = Constants.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(param));
+                delta = Settings.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(param));
 
                 paramPlus = param + delta;
                 self.projectile.params(paramIdx) = paramPlus;
@@ -112,7 +112,7 @@ classdef Sensor < handle
                 paramIdx = self.planet.estimatedParamIdxs(i);
                 param = self.planet.params(paramIdx);
 
-                delta = Constants.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(param));
+                delta = Settings.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(param));
 
                 paramPlus = param + delta;
                 self.planet.params(paramIdx) = paramPlus;
@@ -136,7 +136,7 @@ classdef Sensor < handle
         function isReadyToSample = shouldTakeMeasurement(self, time)
             % Determines whether sensor is ready to take a new measurement
             
-            isReadyToSample = (time >= (self.nextSampleTime - Constants.DEFAULT_TIME_TOL));  % See Constants:Note 1
+            isReadyToSample = (time >= (self.nextSampleTime - Settings.DEFAULT_TIME_TOL));  % See Settings:Note 1
 
             if isReadyToSample
                 self.nextSampleTime = time + self.samplePeriod;
@@ -150,15 +150,11 @@ classdef Sensor < handle
             nParams = length(self.params);
         end
 
-        function invMeasNoiseCovar = get.invMeasNoiseCovar(self)
-            invMeasNoiseCovar = inv(self.measNoiseCovar);
-        end
-
         
         % Setters ==================================================================================
 
         function set.ID(self, ID)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.ID = Validator.validateType(ID, "double");
             else
                 self.ID = ID;
@@ -166,7 +162,7 @@ classdef Sensor < handle
         end
 
         function set.paramDefs(self, paramDefs)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.paramDefs = Validator.validateFieldTypes(paramDefs, "ParamDef");
             else
                 self.paramDefs = paramDefs;
@@ -174,7 +170,7 @@ classdef Sensor < handle
         end
 
         function set.params(self, params)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.params = Validator.validateType(params, "double");
             else
                 self.params = params;
@@ -182,16 +178,22 @@ classdef Sensor < handle
         end
 
         function set.measNoiseCovar(self, measNoiseCovar)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 measNoiseCovar = Validator.validateType(measNoiseCovar, "double");
                 self.measNoiseCovar = Validator.validateSize(measNoiseCovar, [self.nMeas, self.nMeas]);
             else
                 self.measNoiseCovar = measNoiseCovar;
             end
+            
+            % Covariance must be nonsingular for these to be defined
+            if det(measNoiseCovar) ~= 0
+                self.invMeasNoiseCovar = inv(measNoiseCovar);
+                self.measNoiseStdDev = chol(measNoiseCovar);   % Matrix square root
+            end
         end
 
         function set.samplePeriod(self, samplePeriod)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.samplePeriod = Validator.validateType(samplePeriod, "double");
             else
                 self.samplePeriod = samplePeriod;
@@ -199,7 +201,7 @@ classdef Sensor < handle
         end
 
         function set.nextSampleTime(self, nextSampleTime)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.nextSampleTime = Validator.validateType(nextSampleTime, "double");
             else
                 self.nextSampleTime = nextSampleTime;

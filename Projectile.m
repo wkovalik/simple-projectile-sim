@@ -240,7 +240,7 @@ classdef Projectile < handle
         % Setters ==================================================================================
 
         function set.stateDef(self, stateDef)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.stateDef = Validator.validateType(stateDef, "StateDef");
             else
                 self.stateDef = stateDef;
@@ -248,7 +248,7 @@ classdef Projectile < handle
         end
 
         function set.paramDefs(self, paramDefs)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.paramDefs = Validator.validateFieldTypes(paramDefs, ["ParamDef", "ParamTableDef"]);
             else
                 self.paramDefs = paramDefs;
@@ -256,7 +256,7 @@ classdef Projectile < handle
         end
 
         function set.state(self, state)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 state = Validator.validateType(state, "double");
                 self.state = Validator.validateSize(state, [self.nStates, 1]);
             else
@@ -265,7 +265,7 @@ classdef Projectile < handle
         end
 
         function set.stateCovar(self, stateCovar)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 stateCovar = Validator.validateType(stateCovar, "double");
                 self.stateCovar = Validator.validateSize(stateCovar, [self.nStates, self.nStates]);
             else
@@ -274,7 +274,7 @@ classdef Projectile < handle
         end
 
         function set.params(self, params)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.params = Validator.validateType(params, "double");
             else
                 self.params = params;
@@ -282,7 +282,7 @@ classdef Projectile < handle
         end
 
         function set.estimatedParams(self, estimatedParams)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.estimatedParams = Validator.validateType(estimatedParams, "double");
             else
                 self.estimatedParams = estimatedParams;
@@ -290,7 +290,7 @@ classdef Projectile < handle
         end
 
         function set.estimatedParamCovar(self, estimatedParamCovar)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 estimatedParamCovar = Validator.validateType(estimatedParamCovar, "double");
                 self.estimatedParamCovar = Validator.validateSize(estimatedParamCovar, [self.nEstimatedParams, self.nEstimatedParams]);
             else
@@ -299,7 +299,7 @@ classdef Projectile < handle
         end
 
         function set.estimatedParamIdxs(self, estimatedParamIdxs)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.estimatedParamIdxs = Validator.validateType(estimatedParamIdxs, "double");
             else
                 self.estimatedParamIdxs = estimatedParamIdxs;
@@ -307,7 +307,7 @@ classdef Projectile < handle
         end
 
         function set.aeroModel(self, aeroModel)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.aeroModel = Validator.validateString(aeroModel, self.VALID_AERO_MODELS);
             else
                 self.aeroModel = aeroModel;
@@ -315,7 +315,7 @@ classdef Projectile < handle
         end
 
         function set.computeAeroCoeffs(self, aeroModelFn)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.computeAeroCoeffs = Validator.validateType(aeroModelFn, "function_handle");
             else
                 self.computeAeroCoeffs = aeroModelFn;

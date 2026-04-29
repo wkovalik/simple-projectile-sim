@@ -41,7 +41,7 @@ classdef StateDef
         % Setters ==================================================================================
 
         function obj = set.time(obj, time)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 obj.time = Validator.validateType(time, "double");
             else
                 obj.time = time;
@@ -49,7 +49,7 @@ classdef StateDef
         end
 
         function obj = set.state(obj, state)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 state = Validator.validateType(state, "double");
                 obj.state = Validator.validateSize(state, [obj.nStates, 1]);
             else
@@ -58,7 +58,7 @@ classdef StateDef
         end
 
         function obj = set.covar(obj, covar)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 covar = Validator.validateType(covar, "double");
                 obj.covar = Validator.validateSize(covar, [obj.nStates, obj.nStates]);
             else

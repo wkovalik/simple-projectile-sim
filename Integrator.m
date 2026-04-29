@@ -40,7 +40,7 @@ classdef Integrator < handle
         % Setters ==================================================================================
         
         function set.stepPeriod(self, stepPeriod)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.stepPeriod = Validator.validateType(stepPeriod, "double");
             else
                 self.stepPeriod = stepPeriod;
@@ -48,7 +48,7 @@ classdef Integrator < handle
         end
 
         function set.computeStateDeriv(self, stateDerivFn)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.computeStateDeriv = Validator.validateType(stateDerivFn, "function_handle");
             else
                 self.computeStateDeriv = stateDerivFn;

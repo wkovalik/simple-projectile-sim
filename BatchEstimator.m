@@ -101,7 +101,7 @@ classdef BatchEstimator < handle
             fprintf("\n")
             
             % Initialize output data structure
-            nMaxIterations = Constants.DEFAULT_MAX_ITERS;
+            nMaxIterations = Settings.DEFAULT_MAX_ITERS;
 
             output.iterationData = cell(1, nMaxIterations + 1);
 
@@ -193,10 +193,10 @@ classdef BatchEstimator < handle
                     mappedH = [mappedStateH, mappedParamH];
                     
                     % Accumulate postfit normal vector and information matrix
-                    measNoiseCovar = sensorModel.measNoiseCovar;
+                    invMeasNoiseCovar = sensorModel.invMeasNoiseCovar;
                     
-                    nextAugNormal = mappedH' / measNoiseCovar * measResidual;
-                    nextAugStateInvCovar = mappedH' / measNoiseCovar * mappedH;
+                    nextAugNormal = mappedH' * invMeasNoiseCovar * measResidual;
+                    nextAugStateInvCovar = mappedH' * invMeasNoiseCovar * mappedH;
     
                     postAugNormal = postAugNormal + nextAugNormal;
                     postAugStateInvCovar = postAugStateInvCovar + nextAugStateInvCovar;
@@ -212,7 +212,7 @@ classdef BatchEstimator < handle
 
                 if ii == 1
                     % Determine if state has converged
-                    if max(abs(postAugStateDelta ./ priorAugState)) < Constants.DEFAULT_CONVERGENCE_TOL
+                    if max(abs(postAugStateDelta ./ priorAugState)) < Settings.DEFAULT_CONVERGENCE_TOL
                         hasConverged = true;
                     end
                     
@@ -220,7 +220,7 @@ classdef BatchEstimator < handle
                     postAugState = priorAugState + postAugStateDelta;
                 else
                     % Determine if state has converged
-                    if max(abs(postAugStateDelta ./ postAugState)) < Constants.DEFAULT_CONVERGENCE_TOL
+                    if max(abs(postAugStateDelta ./ postAugState)) < Settings.DEFAULT_CONVERGENCE_TOL
                         hasConverged = true;
                     end
                     

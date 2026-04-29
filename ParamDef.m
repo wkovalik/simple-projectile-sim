@@ -29,7 +29,7 @@ classdef ParamDef
         % Setters ==================================================================================
         
         function obj = set.value(obj, value)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 obj.value = Validator.validateType(value, "double");
             else
                 obj.value = value;
@@ -37,7 +37,7 @@ classdef ParamDef
         end
 
         function obj = set.covar(obj, covar)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 obj.covar = Validator.validateType(covar, "double");
             else
                 obj.covar = covar;
@@ -45,7 +45,7 @@ classdef ParamDef
         end
 
         function obj = set.isEstimated(obj, isEstimated)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 obj.isEstimated = Validator.validateType(isEstimated, "logical");
             else
                 obj.isEstimated = isEstimated;

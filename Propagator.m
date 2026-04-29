@@ -34,7 +34,7 @@ classdef Propagator < handle
             self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
 
             % Preallocate time and state histories
-            nHistoryLen = Constants.DEFAULT_HISTORY_LEN;
+            nHistoryLen = Settings.DEFAULT_HISTORY_LEN;
             nStates = self.projectileDynamics.projectile.nStates;
 
             timeHistory = zeros(1, nHistoryLen);
@@ -53,7 +53,7 @@ classdef Propagator < handle
             % --------------------------------------------------------------------------------------
 
             nSteps = 0;
-            while time < (finalTime - Constants.DEFAULT_TIME_TOL)  % See Constants:Note 1
+            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings:Note 1
                 % Step to next time and state
                 [nextTime, nextState] = self.integrator.step(time, state);
 
@@ -87,7 +87,7 @@ classdef Propagator < handle
             self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeAugStateDeriv(varargin{:});  % See Note 1
             
             % Preallocate time and state histories
-            nHistoryLen = Constants.DEFAULT_HISTORY_LEN;
+            nHistoryLen = Settings.DEFAULT_HISTORY_LEN;
             nStates = self.projectileDynamics.projectile.nStates;
             nEstimatedParams = self.projectileDynamics.projectile.nEstimatedParams + self.projectileDynamics.planet.nEstimatedParams;
             includeParamSTM = logical(nEstimatedParams);
@@ -137,7 +137,7 @@ classdef Propagator < handle
             % --------------------------------------------------------------------------------------
 
             nSteps = 0;
-            while time < (finalTime - Constants.DEFAULT_TIME_TOL)  % See Constants:Note 1
+            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings:Note 1
                 % Step to next time and augmented state
                 [nextTime, nextAugState] = self.integrator.step(time, augState);
                 
@@ -198,7 +198,7 @@ classdef Propagator < handle
             self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
             
             % Preallocate time and state histories
-            nHistoryLen = Constants.DEFAULT_HISTORY_LEN;
+            nHistoryLen = Settings.DEFAULT_HISTORY_LEN;
             nStates = self.projectileDynamics.projectile.nStates;
 
             timeHistory = zeros(1, nHistoryLen);
@@ -238,7 +238,7 @@ classdef Propagator < handle
             % --------------------------------------------------------------------------------------
 
             nSteps = 0;
-            while time < (finalTime - Constants.DEFAULT_TIME_TOL)  % See Constants:Note 1
+            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings:Note 1
                 % Step to next time and state
                 [nextTime, nextState] = self.integrator.step(time, state);
 

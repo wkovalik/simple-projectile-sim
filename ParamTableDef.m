@@ -55,7 +55,7 @@ classdef ParamTableDef
         % Setters ==================================================================================
         
         function obj = set.xValues(obj, xValues)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 obj.xValues = Validator.validateType(xValues, "double");
             else
                 obj.xValues = xValues;
@@ -70,7 +70,7 @@ classdef ParamTableDef
         end
 
         function obj = set.yValues(obj, yValues)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 yValues = Validator.validateType(yValues, "double");
                 obj.yValues = Validator.validateSize(yValues, [obj.nValues, 1]);
             else
@@ -79,7 +79,7 @@ classdef ParamTableDef
         end
 
         function obj = set.yCovars(obj, yCovars)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 yCovars = Validator.validateType(yCovars, "double");
                 obj.yCovars = Validator.validateSize(yCovars, [obj.nValues, 1]);
             else
@@ -88,7 +88,7 @@ classdef ParamTableDef
         end
 
         function obj = set.yIsEstimated(obj, yIsEstimated)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 yIsEstimated = Validator.validateType(yIsEstimated, "logical");
                 obj.yIsEstimated = Validator.validateSize(yIsEstimated, [obj.nValues, 1]);
             else

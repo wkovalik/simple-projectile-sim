@@ -427,7 +427,7 @@ classdef Earth < handle
         % Setters ==================================================================================
 
         function set.paramDefs(self, paramDefs)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.paramDefs = Validator.validateFieldTypes(paramDefs, ["ParamDef", "ParamTableDef"]);
             else
                 self.paramDefs = paramDefs;
@@ -435,7 +435,7 @@ classdef Earth < handle
         end
 
         function set.params(self, params)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.params = Validator.validateType(params, "double");
             else
                 self.params = params;
@@ -443,7 +443,7 @@ classdef Earth < handle
         end
 
         function set.estimatedParams(self, estimatedParams)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.estimatedParams = Validator.validateType(estimatedParams, "double");
             else
                 self.estimatedParams = estimatedParams;
@@ -451,7 +451,7 @@ classdef Earth < handle
         end
 
         function set.estimatedParamCovar(self, estimatedParamCovar)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 estimatedParamCovar = Validator.validateType(estimatedParamCovar, "double");
                 self.estimatedParamCovar = Validator.validateSize(estimatedParamCovar, [self.nEstimatedParams, self.nEstimatedParams]);
             else
@@ -460,7 +460,7 @@ classdef Earth < handle
         end
 
         function set.estimatedParamIdxs(self, estimatedParamIdxs)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.estimatedParamIdxs = Validator.validateType(estimatedParamIdxs, "double");
             else
                 self.estimatedParamIdxs = estimatedParamIdxs;
@@ -468,7 +468,7 @@ classdef Earth < handle
         end
 
         function set.gravityModel(self, gravityModel)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.gravityModel = Validator.validateString(gravityModel, self.VALID_GRAVITY_MODELS);
             else
                 self.gravityModel = gravityModel;
@@ -476,7 +476,7 @@ classdef Earth < handle
         end
 
         function set.atmosphereModel(self, atmosphereModel)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.atmosphereModel = Validator.validateString(atmosphereModel, self.VALID_ATMOSPHERE_MODELS);
             else
                 self.atmosphereModel = atmosphereModel;
@@ -484,7 +484,7 @@ classdef Earth < handle
         end
 
         function set.windModel(self, windModel)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.windModel = Validator.validateString(windModel, self.VALID_WIND_MODELS);
             else
                 self.windModel = windModel;
@@ -492,7 +492,7 @@ classdef Earth < handle
         end
 
         function set.computeGravity(self, gravityModelFn)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.computeGravity = Validator.validateType(gravityModelFn, "function_handle");
             else
                 self.computeGravity = gravityModelFn;
@@ -500,7 +500,7 @@ classdef Earth < handle
         end
 
         function set.computeAtmosphere(self, atmosphereModelFn)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.computeAtmosphere = Validator.validateType(atmosphereModelFn, "function_handle");
             else
                 self.computeAtmosphere = atmosphereModelFn;
@@ -508,7 +508,7 @@ classdef Earth < handle
         end
 
         function set.computeWind(self, windModelFn)
-            if Constants.VALIDATE_FLAG
+            if Settings.VALIDATE_FLAG
                 self.computeWind = Validator.validateType(windModelFn, "function_handle");
             else
                 self.computeWind = windModelFn;
