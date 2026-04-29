@@ -18,6 +18,7 @@ TODO: (ProjectileDynamics) Add tempStorage to derivative functions. That way not
 
 SMALL TODOs
 
+TODO: Do pass of all setters/updators to ensure "dependent" props are set/updated correctly
 TODO: Validate all projectile, planet, projectileDynamics, propagator, integrator, etc. sets
 TODO: Do pass of all property and method attributes
 TODO: Do pass of all getter and setter methods

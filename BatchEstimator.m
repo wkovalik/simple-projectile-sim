@@ -80,6 +80,7 @@ classdef BatchEstimator < handle
             nEstimatedProjectileParams = self.projectileModel.nEstimatedParams;
             nEstimatedPlanetParams = self.planetModel.nEstimatedParams;
             nEstimatedParams = nEstimatedProjectileParams + nEstimatedPlanetParams;
+
             includeParamSTM = logical(nEstimatedParams);
 
             nAugStates = nStates + nEstimatedParams;
@@ -172,12 +173,14 @@ classdef BatchEstimator < handle
                     
                     % Get observed measurement and computed measurement at current measurement time
                     nMeas = sensorModel.nMeas;
-                    observedMeas = measHistory(2 + (1:nMeas), i);
+                    iMeasEnd = 3 + (nMeas - 1);
+
+                    observedMeas = measHistory(3:iMeasEnd, i);
                     computedMeas = sensorModel.computeMeasurement(nomState);
     
                     % Compute measurement residual
                     measResidual = observedMeas - computedMeas;
-                    measResidualHistory(2 + (1:nMeas), i) = measResidual;
+                    measResidualHistory(3:iMeasEnd, i) = measResidual;
                     
                     % Compute measurement sensitivity matrices (i.e., Jacobians) and map to initial time
                     stateH = sensorModel.computeStateJacobian(nomState);
@@ -319,12 +322,14 @@ classdef BatchEstimator < handle
                 
                 % Get observed measurement and computed measurement at current measurement time
                 nMeas = sensorModel.nMeas;
-                observedMeas = measHistory(2 + (1:nMeas), i);
+                iMeasEnd = 3 + (nMeas - 1);
+
+                observedMeas = measHistory(3:iMeasEnd, i);
                 computedMeas = sensorModel.computeMeasurement(nomState);
                 
                 % Compute postfit measurement residual
                 measResidual = observedMeas - computedMeas;
-                measResidualHistory(2 + (1:nMeas), i) = measResidual;
+                measResidualHistory(3:iMeasEnd, i) = measResidual;
             end
 
             output.iterationData{nIterations + 1}.measResidualHistory = measResidualHistory;

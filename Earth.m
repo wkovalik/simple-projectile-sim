@@ -15,6 +15,9 @@ classdef Earth < handle
     end
 
     properties (SetAccess = private)
+        nParams = 0;
+
+        nEstimatedParams = 0;
         estimatedParamIdxs = [];
 
         gIdx = 0;
@@ -37,11 +40,6 @@ classdef Earth < handle
         computeGravity
         computeAtmosphere
         computeWind
-    end
-
-    properties (Dependent, SetAccess = private)
-        nParams
-        nEstimatedParams
     end
 
     properties (Constant)
@@ -413,17 +411,6 @@ classdef Earth < handle
         end
 
         
-        % Getters ==================================================================================
-
-        function nParams = get.nParams(self)
-            nParams = length(self.params);
-        end
-
-        function nEstimatedParams = get.nEstimatedParams(self)
-            nEstimatedParams = length(self.estimatedParams);
-        end
-
-        
         % Setters ==================================================================================
 
         function set.paramDefs(self, paramDefs)
@@ -440,6 +427,8 @@ classdef Earth < handle
             else
                 self.params = params;
             end
+
+            self.nParams = length(params);
         end
 
         function set.estimatedParams(self, estimatedParams)
@@ -448,6 +437,8 @@ classdef Earth < handle
             else
                 self.estimatedParams = estimatedParams;
             end
+
+            self.nEstimatedParams = length(estimatedParams);
         end
 
         function set.estimatedParamCovar(self, estimatedParamCovar)

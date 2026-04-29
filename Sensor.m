@@ -20,12 +20,11 @@ classdef Sensor < handle
         planet
     end
 
-    % properties (SetAccess = private)
-    %     considerParamIdxs = [];
-    % end
-
-    properties (Dependent, SetAccess = private)
-        nParams
+    properties (SetAccess = private)
+        nParams = 0;
+        
+        % nConsiderParams = 0;
+        % considerParamIdxs = [];
     end
     
     properties (Abstract, Constant)
@@ -143,13 +142,6 @@ classdef Sensor < handle
             end
         end
 
-
-        % Getters ==================================================================================
-
-        function nParams = get.nParams(self)
-            nParams = length(self.params);
-        end
-
         
         % Setters ==================================================================================
 
@@ -175,6 +167,8 @@ classdef Sensor < handle
             else
                 self.params = params;
             end
+
+            self.nParams = length(params);
         end
 
         function set.measNoiseCovar(self, measNoiseCovar)

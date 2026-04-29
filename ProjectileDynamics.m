@@ -4,9 +4,11 @@ classdef ProjectileDynamics < handle
     properties
         projectile
         planet
-    end
 
+        includeParamSTM = true;
+    end
     
+
     methods
         % Constructor ==============================================================================
 
@@ -91,34 +93,43 @@ classdef ProjectileDynamics < handle
 
         function augStateDeriv = computeAugStateDeriv(self, augState)
             nStates = self.projectile.nStates;
+
+            iStateEnd = nStates;
+            iStateSTMEnd = nStates + nStates ^ 2;
             
-            % TODO: Test for-loop get optimization here
-            state = augState(1:nStates);
-            stateSTM = augState(nStates + (1:nStates ^ 2));
-            paramSTM = augState((nStates + nStates ^ 2 + 1):end);
+            state = augState(1:iStateEnd);
+            stateSTM = augState((iStateEnd + 1):iStateSTMEnd);
+            if self.includeParamSTM
+                paramSTM = augState((iStateSTMEnd + 1):end);
+            end
 
             stateDeriv = self.computeStateDeriv(state);
-            [stateSTMDeriv, paramSTMDeriv] = self.computeSTMDerivs(state, stateSTM, paramSTM);
-
-            augStateDeriv = [stateDeriv; stateSTMDeriv; paramSTMDeriv];
+            if self.includeParamSTM
+                [stateSTMDeriv, paramSTMDeriv] = self.computeSTMDerivs(state, stateSTM, paramSTM);
+                augStateDeriv = [stateDeriv; stateSTMDeriv; paramSTMDeriv];
+            else
+                stateSTMDeriv = self.computeSTMDerivs(state, stateSTM);
+                augStateDeriv = [stateDeriv; stateSTMDeriv];
+            end
         end
 
 
         function [stateSTMDeriv, paramSTMDeriv] = computeSTMDerivs(self, state, stateSTM, paramSTM)
             nStates = self.projectile.nStates;
-            nEstimatedParams = self.projectile.nEstimatedParams + self.planet.nEstimatedParams;
-
+            
             stateSTM = reshape(stateSTM, [nStates, nStates]);
-            paramSTM = reshape(paramSTM, [nStates, nEstimatedParams]);
-
             stateA = self.computeStateJacobian(state);
-            paramA = self.computeParamJacobian(state);
-
             stateSTMDeriv = stateA * stateSTM;
             stateSTMDeriv = stateSTMDeriv(:);
 
-            paramSTMDeriv = stateA * paramSTM + paramA;
-            paramSTMDeriv = paramSTMDeriv(:);
+            if self.includeParamSTM
+                nEstimatedParams = self.projectile.nEstimatedParams + self.planet.nEstimatedParams;
+
+                paramSTM = reshape(paramSTM, [nStates, nEstimatedParams]);
+                paramA = self.computeParamJacobian(state);
+                paramSTMDeriv = stateA * paramSTM + paramA;
+                paramSTMDeriv = paramSTMDeriv(:);
+            end
         end
 
 
@@ -197,6 +208,17 @@ classdef ProjectileDynamics < handle
                 A(:, nEstimatedProjectileParams + i) = (stateDerivPlus - stateDerivMinus) / (2 * delta);
 
                 self.planet.params(paramIdx) = param;
+            end
+        end
+
+
+        % Setters ==================================================================================
+
+        function set.includeParamSTM(self, includeParamSTM)
+            if Settings.VALIDATE_FLAG
+                self.includeParamSTM = Validator.validateType(includeParamSTM, "logical");
+            else
+                self.includeParamSTM = includeParamSTM;
             end
         end
     end

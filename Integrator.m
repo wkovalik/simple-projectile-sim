@@ -9,6 +9,7 @@ classdef Integrator < handle
         DEFAULT_STEP_PERIOD = 0.01;  % (s)
     end
 
+    
     methods
         % Constructor ==============================================================================
 

@@ -13,6 +13,7 @@ classdef DirectionSensor < Sensor
         DEFAULT_Z = 0;
     end
 
+    
     methods
         % Constructor ==============================================================================
 

@@ -8,9 +8,9 @@ classdef Projectile < handle
         time = 0;
         state = [];
         stateCovar = [];
-
+        
         params = [];
-
+        
         estimatedParams = [];
         estimatedParamCovar = [];
 
@@ -18,6 +18,9 @@ classdef Projectile < handle
     end
 
     properties (SetAccess = private)
+        nParams = 0;
+
+        nEstimatedParams = 0;
         estimatedParamIdxs = [];
 
         mIdx = 0;
@@ -29,11 +32,6 @@ classdef Projectile < handle
         CDTable_Len = 0;
 
         computeAeroCoeffs
-    end
-
-    properties (Dependent, SetAccess = private)
-        nParams
-        nEstimatedParams
     end
 
     properties (Constant)
@@ -226,17 +224,6 @@ classdef Projectile < handle
         end
 
         
-        % Getters ==================================================================================
-
-        function nParams = get.nParams(self)
-            nParams = length(self.params);
-        end
-
-        function nEstimatedParams = get.nEstimatedParams(self)
-            nEstimatedParams = length(self.estimatedParams);
-        end
-
-        
         % Setters ==================================================================================
 
         function set.stateDef(self, stateDef)
@@ -279,6 +266,8 @@ classdef Projectile < handle
             else
                 self.params = params;
             end
+
+            self.nParams = length(params);
         end
 
         function set.estimatedParams(self, estimatedParams)
@@ -287,6 +276,8 @@ classdef Projectile < handle
             else
                 self.estimatedParams = estimatedParams;
             end
+
+            self.nEstimatedParams = length(estimatedParams);
         end
 
         function set.estimatedParamCovar(self, estimatedParamCovar)

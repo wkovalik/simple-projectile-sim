@@ -6,8 +6,8 @@ classdef ParamTableDef
         yIsEstimated = false;
     end
 
-    properties (Dependent)
-        nValues
+    properties (SetAccess = private)
+        nValues = 0;
     end
 
 
@@ -45,13 +45,6 @@ classdef ParamTableDef
         end
 
         
-        % Getters ==================================================================================
-
-        function nValues = get.nValues(obj)
-            nValues = length(obj.xValues);
-        end
-
-        
         % Setters ==================================================================================
         
         function obj = set.xValues(obj, xValues)
@@ -60,6 +53,8 @@ classdef ParamTableDef
             else
                 obj.xValues = xValues;
             end
+
+            obj.nValues = length(xValues);
             
             % Reset all other fields if table length is changed
             if obj.nValues ~= length(obj.yValues)

@@ -53,7 +53,7 @@ classdef Propagator < handle
             % --------------------------------------------------------------------------------------
 
             nSteps = 0;
-            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings:Note 1
+            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings: Note 1
                 % Step to next time and state
                 [nextTime, nextState] = self.integrator.step(time, state);
 
@@ -90,7 +90,9 @@ classdef Propagator < handle
             nHistoryLen = Settings.DEFAULT_HISTORY_LEN;
             nStates = self.projectileDynamics.projectile.nStates;
             nEstimatedParams = self.projectileDynamics.projectile.nEstimatedParams + self.projectileDynamics.planet.nEstimatedParams;
+
             includeParamSTM = logical(nEstimatedParams);
+            self.projectileDynamics.includeParamSTM = includeParamSTM;
 
             if ~includeParamSTM
                 paramSTM = [];
@@ -136,13 +138,16 @@ classdef Propagator < handle
             % Begin propagation loop
             % --------------------------------------------------------------------------------------
 
+            iStateEnd = nStates;
+            iStateSTMEnd = nStates + nStates ^ 2;
+
             nSteps = 0;
-            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings:Note 1
+            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings: Note 1
                 % Step to next time and augmented state
                 [nextTime, nextAugState] = self.integrator.step(time, augState);
                 
                 % Extract next state
-                nextState = nextAugState(1:nStates);
+                nextState = nextAugState(1:iStateEnd);
 
                 % Detect ground impact
                 if (nextTime > 5) && (nextState(3) > 0)
@@ -154,9 +159,9 @@ classdef Propagator < handle
                 augState = nextAugState;
 
                 % Extract STMs
-                stateSTM = augState(nStates + (1:nStates ^ 2));
+                stateSTM = augState((iStateEnd + 1):iStateSTMEnd);
                 if includeParamSTM
-                    paramSTM = augState((nStates + nStates ^ 2 + 1):end);
+                    paramSTM = augState((iStateSTMEnd + 1):end);
                 end
                 
                 % Store next time and state
@@ -227,9 +232,12 @@ classdef Propagator < handle
                     % Store sensor measurement(s)
                     nSamples = nSamples + 1;
 
+                    nMeas = sensor.nMeas;
+                    iMeasEnd = 3 + (nMeas - 1);
+
                     measHistory(1, nSamples) = sensor.ID;
                     measHistory(2, nSamples) = time;
-                    measHistory(2 + (1:length(sample)), nSamples) = sample;
+                    measHistory(3:iMeasEnd, nSamples) = sample;
                 end
             end
 
@@ -238,7 +246,7 @@ classdef Propagator < handle
             % --------------------------------------------------------------------------------------
 
             nSteps = 0;
-            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings:Note 1
+            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings: Note 1
                 % Step to next time and state
                 [nextTime, nextState] = self.integrator.step(time, state);
 
@@ -260,9 +268,12 @@ classdef Propagator < handle
                         % Store sensor measurement(s)
                         nSamples = nSamples + 1;
 
+                        nMeas = sensor.nMeas;
+                        iMeasEnd = 3 + (nMeas - 1);
+
                         measHistory(1, nSamples) = sensor.ID;
                         measHistory(2, nSamples) = time;
-                        measHistory(2 + (1:length(sample)), nSamples) = sample;
+                        measHistory(3:iMeasEnd, nSamples) = sample;
                     end
                 end
                 
