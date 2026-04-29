@@ -24,8 +24,6 @@ function propagateTruthTrajectory()
     earth.atmosphereModel = "exponential";
     earth.windModel = "table";
     
-    earth.updateModels();
-    
     % Set planet parameters
     earth.paramDefs.vWindx.xValues = linspace(0, 1000, 6)';
     earth.paramDefs.vWindx.yValues = linspace(-5, 15, 6)';
@@ -33,7 +31,7 @@ function propagateTruthTrajectory()
     earth.paramDefs.vWindy.xValues = linspace(0, 1000, 6)';
     earth.paramDefs.vWindy.yValues = linspace(10, 0, 6)';
     
-    earth.updateParams();
+    earth.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -44,18 +42,14 @@ function propagateTruthTrajectory()
     projectile.stateDef.time = 0;
     projectile.stateDef.state = [0; 0; 0; 30; 0; -330];
     
-    projectile.updateState();
-    
     % Set projectile models
     projectile.aeroModel = "table";
-    
-    projectile.updateModels();
     
     % Set projectile parameters
     projectile.paramDefs.CD.xValues = linspace(0, 1, 6)';
     projectile.paramDefs.CD.yValues = linspace(0.15, 0.15, 6)';
     
-    projectile.updateParams();
+    projectile.update();
     
     % Create projectile dynamics
     projectileDynamics = ProjectileDynamics(projectile, earth);
@@ -73,7 +67,7 @@ function propagateTruthTrajectory()
     % Set sensor parameters
     rangeSensor.paramDefs.x.value = -1;
     
-    rangeSensor.updateParams();
+    rangeSensor.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -88,7 +82,7 @@ function propagateTruthTrajectory()
     % Set sensor parameters
     directionSensor.paramDefs.x.value = -1;
     
-    directionSensor.updateParams();
+    directionSensor.update();
 
     % ----------------------------------------------------------------------------------------------
 
@@ -127,8 +121,6 @@ function output = runEstimator()
     earthModel.atmosphereModel = "exponential";
     earthModel.windModel = "table";
     
-    earthModel.updateModels();
-    
     % Set planet parameters and parameter covariances
     earthModel.paramDefs.H.value = 9000;
     earthModel.paramDefs.H.covar = 1000 ^ 2;
@@ -144,7 +136,7 @@ function output = runEstimator()
     earthModel.paramDefs.vWindy.yCovars = [50; 50; 50] .^ 2;
     earthModel.paramDefs.vWindy.yIsEstimated = [true; true; true];
     
-    earthModel.updateParams();
+    earthModel.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -156,19 +148,15 @@ function output = runEstimator()
     projectileModel.stateDef.state = [0; 0; 0; 30; 0; -330];
     projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
     
-    projectileModel.updateState();
-    
     % Set projectile models
     projectileModel.aeroModel = "table";
-    
-    projectileModel.updateModels();
     
     % Set projectile parameters and parameter covariances
     projectileModel.paramDefs.CD.xValues = linspace(0, 1, 6)';
     projectileModel.paramDefs.CD.yValues = linspace(0.15, 0.15, 6)';
     projectileModel.paramDefs.CD.yIsEstimated = false(1, 6)';
     
-    projectileModel.updateParams();
+    projectileModel.update();
     
     projectileModelDynamics = ProjectileDynamics(projectileModel, earthModel);
     
@@ -184,7 +172,7 @@ function output = runEstimator()
     % Set sensor parameters
     rangeSensorModel.paramDefs.x.value = -1;
     
-    rangeSensorModel.updateParams();
+    rangeSensorModel.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -198,7 +186,7 @@ function output = runEstimator()
     % Set sensor parameters
     directionSensorModel.paramDefs.x.value = -1;
     
-    directionSensorModel.updateParams();
+    directionSensorModel.update();
 
     % ----------------------------------------------------------------------------------------------
 

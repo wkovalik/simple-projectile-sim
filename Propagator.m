@@ -30,6 +30,8 @@ classdef Propagator < handle
         % Propagate methods ========================================================================
         
         function [timeHistory, stateHistory] = propagate(self, finalTime)
+            self.projectileDynamics.update();
+
             % Set integrator derivative function
             self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
 
@@ -83,6 +85,8 @@ classdef Propagator < handle
 
 
         function [timeHistory, stateHistory, stateSTMHistory, paramSTMHistory] = propagateWithSTM(self, finalTime)
+            self.projectileDynamics.update();
+
             % Set integrator derivative function
             self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeAugStateDeriv(varargin{:});  % See Note 1
             
@@ -92,7 +96,6 @@ classdef Propagator < handle
             nEstimatedParams = self.projectileDynamics.projectile.nEstimatedParams + self.projectileDynamics.planet.nEstimatedParams;
 
             includeParamSTM = logical(nEstimatedParams);
-            self.projectileDynamics.includeParamSTM = includeParamSTM;
 
             if ~includeParamSTM
                 paramSTM = [];
@@ -194,6 +197,8 @@ classdef Propagator < handle
 
 
         function [timeHistory, stateHistory, measHistory] = propagateWithSensors(self, finalTime, sensorArray)
+            self.projectileDynamics.update();
+            
             % Throw warning if integrator step size is too coarse for sensor sampling rates
             if Utils.isIntegratorStepTooCoarse(sensorArray, self.integrator.stepPeriod)
                 warning("Integrator step size is too coarse. At least one sensor will not accurately sample on time.")

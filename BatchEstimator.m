@@ -15,6 +15,18 @@ classdef BatchEstimator < handle
         sensorModelMap
     end
 
+    properties (SetAccess = private)
+        nStates = 0;
+
+        nEstimatedParams = 0;
+        nEstimatedProjectileParams = 0;
+        nEstimatedPlanetParams = 0;
+
+        includeParamSTM = false;
+
+        nAugStates = 0;
+    end
+
 
     methods
         % Constructor ==============================================================================
@@ -60,11 +72,26 @@ classdef BatchEstimator < handle
                 self.sensorModelMap = insert(self.sensorModelMap, sensorModelArray{i}.ID, sensorModelArray(i));
             end
         end
+
+
+        function update(self)
+            self.nStates = self.projectileModel.nStates;
+
+            self.nEstimatedProjectileParams = self.projectileModel.nEstimatedParams;
+            self.nEstimatedPlanetParams = self.planetModel.nEstimatedParams;
+            self.nEstimatedParams = self.nEstimatedProjectileParams + self.nEstimatedPlanetParams;
+
+            self.includeParamSTM = logical(self.nEstimatedParams);
+
+            self.nAugStates = self.nStates + self.nEstimatedParams;
+        end
         
 
         % Solve method =============================================================================
 
         function output = solve(self, measHistory)
+            self.update();
+
             % Remove any measurements from sensors not included in sensor model array
             measHistory = measHistory(:, ismember(measHistory(1, :), self.sensorModelIDs));
 
@@ -74,16 +101,6 @@ classdef BatchEstimator < handle
             finalMeasTime = measTimeHistory(end);  % Get time of final measurement
 
             % --------------------------------------------------------------------------------------
-            
-            nStates = self.projectileModel.nStates;
-            
-            nEstimatedProjectileParams = self.projectileModel.nEstimatedParams;
-            nEstimatedPlanetParams = self.planetModel.nEstimatedParams;
-            nEstimatedParams = nEstimatedProjectileParams + nEstimatedPlanetParams;
-
-            includeParamSTM = logical(nEstimatedParams);
-
-            nAugStates = nStates + nEstimatedParams;
 
             % Build prefit vectors and covariance matrices
             priorState = self.projectileModel.state;
@@ -94,7 +111,7 @@ classdef BatchEstimator < handle
 
             priorAugState = [priorState; priorParams];
             priorAugStateCovar = blkdiag(priorStateCovar, priorParamCovar);
-            priorAugStateDelta = zeros(nStates + nEstimatedParams, 1);
+            priorAugStateDelta = zeros(self.nStates + self.nEstimatedParams, 1);
 
             fprintf("Iteration\tEstimated State\n")
             fprintf("%i\t\t\t", 0)
@@ -106,14 +123,14 @@ classdef BatchEstimator < handle
 
             output.iterationData = cell(1, nMaxIterations + 1);
 
-            output.stateHistory = zeros(nStates, nMaxIterations + 1);
-            output.stateCovarHistory = zeros(nStates ^ 2, nMaxIterations + 1);
+            output.stateHistory = zeros(self.nStates, nMaxIterations + 1);
+            output.stateCovarHistory = zeros(self.nStates ^ 2, nMaxIterations + 1);
 
-            output.paramHistory = zeros(nEstimatedParams, nMaxIterations + 1);
-            output.paramCovarHistory = zeros(nEstimatedParams ^ 2, nMaxIterations + 1);
+            output.paramHistory = zeros(self.nEstimatedParams, nMaxIterations + 1);
+            output.paramCovarHistory = zeros(self.nEstimatedParams ^ 2, nMaxIterations + 1);
 
-            output.augStateHistory = zeros(nAugStates, nMaxIterations + 1);
-            output.augStateCovarHistory = zeros(nAugStates ^ 2, nMaxIterations + 1);
+            output.augStateHistory = zeros(self.nAugStates, nMaxIterations + 1);
+            output.augStateCovarHistory = zeros(self.nAugStates ^ 2, nMaxIterations + 1);
             
             % Add prefit vectors and covariances to output
             output.stateHistory(:, 1) = priorState;
@@ -142,7 +159,7 @@ classdef BatchEstimator < handle
                 % Resample nominal trajectory at measurement times (should be exact)
                 nomStateHistory = Utils.resampleStateHistory(nomTimeHistory, nomStateHistory, measTimeHistory);
                 nomStateSTMHistory = Utils.resampleStateHistory(nomTimeHistory, nomStateSTMHistory, measTimeHistory);
-                if includeParamSTM
+                if self.includeParamSTM
                     nomParamSTMHistory = Utils.resampleStateHistory(nomTimeHistory, nomParamSTMHistory, measTimeHistory);
                 end
                 
@@ -165,10 +182,10 @@ classdef BatchEstimator < handle
                     % Get nominal state and STMs at current measurement time
                     nomState = nomStateHistory(:, i);
                     nomStateSTM = nomStateSTMHistory(:, i);
-                    nomStateSTM = reshape(nomStateSTM, [nStates, nStates]);
-                    if includeParamSTM
+                    nomStateSTM = reshape(nomStateSTM, [self.nStates, self.nStates]);
+                    if self.includeParamSTM
                         nomParamSTM = nomParamSTMHistory(:, i);
-                        nomParamSTM = reshape(nomParamSTM, [nStates, nEstimatedParams]);
+                        nomParamSTM = reshape(nomParamSTM, [self.nStates, self.nEstimatedParams]);
                     end
                     
                     % Get observed measurement and computed measurement at current measurement time
@@ -186,7 +203,7 @@ classdef BatchEstimator < handle
                     stateH = sensorModel.computeStateJacobian(nomState);
                     mappedStateH = stateH * nomStateSTM;
 
-                    if includeParamSTM
+                    if self.includeParamSTM
                         paramH = sensorModel.computeParamJacobian(nomState);
                         mappedParamH = stateH * nomParamSTM + paramH;
                     else
@@ -244,8 +261,8 @@ classdef BatchEstimator < handle
                 % ----------------------------------------------------------------------------------
                 
                 % Extract postfit projectile state
-                postState = postAugState(1:nStates);
-                postStateCovar = postAugStateCovar(1:nStates, 1:nStates);
+                postState = postAugState(1:self.nStates);
+                postStateCovar = postAugStateCovar(1:self.nStates, 1:self.nStates);
 
                 output.stateHistory(:, ii + 1) = postState;
                 output.stateCovarHistory(:, ii + 1) = postStateCovar(:);
@@ -254,17 +271,17 @@ classdef BatchEstimator < handle
                 self.projectileModel.time = 0;  % See TODO
                 self.projectileModel.state = postState;
 
-                if includeParamSTM
+                if self.includeParamSTM
                     % Extract postfit parameters
-                    postParams = postAugState((nStates + 1):end);
-                    postParamCovar = postAugStateCovar((nStates + 1):end, (nStates + 1):end);
+                    postParams = postAugState((self.nStates + 1):end);
+                    postParamCovar = postAugStateCovar((self.nStates + 1):end, (self.nStates + 1):end);
     
                     output.paramHistory(:, ii + 1) = postParams;
                     output.paramCovarHistory(:, ii + 1) = postParamCovar(:);
     
                     % Extract postfit projectile parameters
-                    postProjectileParams = postParams(1:nEstimatedProjectileParams);
-                    postProjectileParamCovar = postParamCovar(1:nEstimatedProjectileParams, 1:nEstimatedProjectileParams);
+                    postProjectileParams = postParams(1:self.nEstimatedProjectileParams);
+                    postProjectileParamCovar = postParamCovar(1:self.nEstimatedProjectileParams, 1:self.nEstimatedProjectileParams);
                     
                     % Update projectile model parameters
                     self.projectileModel.params(self.projectileModel.estimatedParamIdxs) = postProjectileParams;
@@ -272,8 +289,8 @@ classdef BatchEstimator < handle
                     self.projectileModel.estimatedParamCovar = postProjectileParamCovar;
     
                     % Extract postfit planet parameters
-                    postPlanetParams = postParams((nEstimatedProjectileParams + 1):end);
-                    postPlanetParamCovar = postParamCovar((nEstimatedProjectileParams + 1):end, (nEstimatedProjectileParams + 1):end);
+                    postPlanetParams = postParams((self.nEstimatedProjectileParams + 1):end);
+                    postPlanetParamCovar = postParamCovar((self.nEstimatedProjectileParams + 1):end, (self.nEstimatedProjectileParams + 1):end);
                     
                     % Update planet model parameters
                     self.planetModel.params(self.planetModel.estimatedParamIdxs) = postPlanetParams;

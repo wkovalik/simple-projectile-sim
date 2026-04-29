@@ -37,6 +37,10 @@ classdef Earth < handle
         vWindyTable_vWindy0Idx = 0;
         vWindyTable_Len = 0;
 
+        isGravityModelInit = false;
+        isAtmosphereModelInit = false;
+        isWindModelInit = false;
+
         computeGravity
         computeAtmosphere
         computeWind
@@ -94,59 +98,93 @@ classdef Earth < handle
 
             end
             
-            self.updateModels();
+            self.update();
         end
 
 
         % Update methods ===========================================================================
 
+        function update(self)
+            self.updateModels();
+            self.updateParams();
+            self.updateEstimatedParams();
+        end
+
+
         function updateModels(self)
+            self.updateGravityModel();
+            self.updateAtmosphereModel();
+            self.updateWindModel();
+        end
+
+
+        function updateGravityModel(self)
             switch self.gravityModel
                 case "constant"
                     self.computeGravity = @self.constantGravityModel;
-
-                    self.paramDefs.g = ParamDef(self.DEFAULT_G);
+                    
+                    if ~self.isGravityModelInit
+                        self.paramDefs.g = ParamDef(self.DEFAULT_G);
+                    end
 
                 otherwise
                     error("Invalid gravity model: %s.", self.gravityModel)
             end
 
+            self.isGravityModelInit = true;
+        end
+
+
+        function updateAtmosphereModel(self)
             switch self.atmosphereModel
                 case "constant"
                     self.computeAtmosphere = @self.constantAtmosphereModel;
-
-                    self.paramDefs.rho = ParamDef(self.DEFAULT_RHO);
-                    self.paramDefs.a = ParamDef(self.DEFAULT_A);
+                    
+                    if ~self.isAtmosphereModelInit
+                        self.paramDefs.rho = ParamDef(self.DEFAULT_RHO);
+                        self.paramDefs.a = ParamDef(self.DEFAULT_A);
+                    end
 
                 case "exponential"
                     self.computeAtmosphere = @self.exponentialAtmosphereModel;
-
-                    self.paramDefs.rho0 = ParamDef(self.DEFAULT_RHO0);
-                    self.paramDefs.H = ParamDef(self.DEFAULT_H);
-                    self.paramDefs.a = ParamDef(self.DEFAULT_A);
+                    
+                    if ~self.isAtmosphereModelInit
+                        self.paramDefs.rho0 = ParamDef(self.DEFAULT_RHO0);
+                        self.paramDefs.H = ParamDef(self.DEFAULT_H);
+                        self.paramDefs.a = ParamDef(self.DEFAULT_A);
+                    end
 
                 otherwise
                     error("Invalid atmosphere model: %s.", self.atmosphereModel)
             end
 
+            self.isAtmosphereModelInit = true;
+        end
+
+
+        function updateWindModel(self)
             switch self.windModel
                 case "constant"
                     self.computeWind = @self.constantWindModel;
-
-                    self.paramDefs.vWindx = ParamDef(self.DEFAULT_VWINDX);
-                    self.paramDefs.vWindy = ParamDef(self.DEFAULT_VWINDY);
+                    
+                    if ~self.isWindModelInit
+                        self.paramDefs.vWindx = ParamDef(self.DEFAULT_VWINDX);
+                        self.paramDefs.vWindy = ParamDef(self.DEFAULT_VWINDY);
+                    end
 
                 case "table"
                     self.computeWind = @self.tableWindModel;
-
-                    self.paramDefs.vWindx = ParamTableDef(self.DEFAULT_VWINDX_TABLE_X, self.DEFAULT_VWINDX_TABLE_Y);
-                    self.paramDefs.vWindy = ParamTableDef(self.DEFAULT_VWINDY_TABLE_X, self.DEFAULT_VWINDY_TABLE_Y);
+                    
+                    if ~self.isWindModelInit
+                        self.paramDefs.vWindx = ParamTableDef(self.DEFAULT_VWINDX_TABLE_X, self.DEFAULT_VWINDX_TABLE_Y);
+                        self.paramDefs.vWindy = ParamTableDef(self.DEFAULT_VWINDY_TABLE_X, self.DEFAULT_VWINDY_TABLE_Y);
+                    end
 
                 otherwise
                     error("Invalid wind model: %s.", self.windModel)
             end
-
-            self.updateParams();
+            
+            self.isWindModelInit = true;
         end
 
 
@@ -241,8 +279,6 @@ classdef Earth < handle
                 otherwise
                     error("Invalid wind model: %s.", self.windModel)
             end
-
-            self.updateEstimatedParams();
         end
 
 
@@ -464,6 +500,9 @@ classdef Earth < handle
             else
                 self.gravityModel = gravityModel;
             end
+
+            self.isGravityModelInit = false;
+            self.updateGravityModel();
         end
 
         function set.atmosphereModel(self, atmosphereModel)
@@ -472,6 +511,9 @@ classdef Earth < handle
             else
                 self.atmosphereModel = atmosphereModel;
             end
+
+            self.isAtmosphereModelInit = false;
+            self.updateAtmosphereModel();
         end
 
         function set.windModel(self, windModel)
@@ -480,6 +522,9 @@ classdef Earth < handle
             else
                 self.windModel = windModel;
             end
+
+            self.isWindModelInit = false;
+            self.updateWindModel();
         end
 
         function set.computeGravity(self, gravityModelFn)

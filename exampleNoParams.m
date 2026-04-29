@@ -28,8 +28,8 @@ function propagateTruthTrajectory()
     % Set initial time and state
     projectile.stateDef.time = 0;
     projectile.stateDef.state = [0; 0; 0; 30; 0; -330];
-    
-    projectile.updateState();
+
+    projectile.update();
     
     % Create projectile dynamics
     projectileDynamics = ProjectileDynamics(projectile, earth);
@@ -47,7 +47,7 @@ function propagateTruthTrajectory()
     % Set sensor parameters
     rangeSensor.paramDefs.x.value = -1;
     
-    rangeSensor.updateParams();
+    rangeSensor.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -62,7 +62,7 @@ function propagateTruthTrajectory()
     % Set sensor parameters
     directionSensor.paramDefs.x.value = -1;
     
-    directionSensor.updateParams();
+    directionSensor.update();
     
     % ----------------------------------------------------------------------------------------------
 
@@ -107,7 +107,7 @@ function output = runEstimator()
     projectileModel.stateDef.state = [0; 0; 0; 35; 5; -325];
     projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
     
-    projectileModel.updateState();
+    projectileModel.update();
     
     % Create projectile dynamics model
     projectileModelDynamics = ProjectileDynamics(projectileModel, earthModel);
@@ -124,7 +124,7 @@ function output = runEstimator()
     % Set sensor parameters
     rangeSensorModel.paramDefs.x.value = -1;
     
-    rangeSensorModel.updateParams();
+    rangeSensorModel.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -138,7 +138,7 @@ function output = runEstimator()
     % Set sensor parameters
     directionSensorModel.paramDefs.x.value = -1;
     
-    directionSensorModel.updateParams();
+    directionSensorModel.update();
 
     % ----------------------------------------------------------------------------------------------
 

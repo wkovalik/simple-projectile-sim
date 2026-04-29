@@ -31,6 +31,8 @@ classdef Projectile < handle
         CDTable_CD0Idx = 0;
         CDTable_Len = 0;
 
+        isAeroModelInit = false;
+
         computeAeroCoeffs
     end
 
@@ -62,8 +64,6 @@ classdef Projectile < handle
         function self = Projectile(aeroModel)
             self.stateDef = StateDef();
 
-            self.updateState();
-
             self.paramDefs.m = ParamDef(self.DEFAULT_M);
             self.paramDefs.S = ParamDef(self.DEFAULT_S);
             
@@ -75,11 +75,20 @@ classdef Projectile < handle
                 error("Too many input arguments.")
             end
 
-            self.updateModels();
+            self.update();
         end
 
         
         % Update methods ===========================================================================
+
+        function update(self)
+            self.updateState();
+
+            self.updateModels();
+            self.updateParams();
+            self.updateEstimatedParams();
+        end
+
 
         function updateState(self)
             self.time = self.stateDef.time;
@@ -87,24 +96,33 @@ classdef Projectile < handle
             self.stateCovar = self.stateDef.covar;
         end
 
-
+        
         function updateModels(self)
+            self.updateAeroModel();
+        end
+        
+
+        function updateAeroModel(self)
             switch self.aeroModel
                 case "constant"
                     self.computeAeroCoeffs = @self.constantAeroModel;
-
-                    self.paramDefs.CD = ParamDef(self.DEFAULT_CD);
+                    
+                    if ~self.isAeroModelInit
+                        self.paramDefs.CD = ParamDef(self.DEFAULT_CD);
+                    end
 
                 case "table"
                     self.computeAeroCoeffs = @self.tableAeroModel;
-
-                    self.paramDefs.CD = ParamTableDef(self.DEFAULT_CD_TABLE_X, self.DEFAULT_CD_TABLE_Y);
+                    
+                    if ~self.isAeroModelInit
+                        self.paramDefs.CD = ParamTableDef(self.DEFAULT_CD_TABLE_X, self.DEFAULT_CD_TABLE_Y);
+                    end
 
                 otherwise
                     error("Invalid aerodynamics model: %s.", self.aeroModel)
             end
 
-            self.updateParams();
+            self.isAeroModelInit = true;
         end
 
 
@@ -145,8 +163,6 @@ classdef Projectile < handle
                     
                     self.CDTable_Len = self.paramDefs.CD.nValues;
             end
-
-            self.updateEstimatedParams();
         end
 
 
@@ -303,6 +319,9 @@ classdef Projectile < handle
             else
                 self.aeroModel = aeroModel;
             end
+
+            self.isAeroModelInit = false;
+            self.updateAeroModel();
         end
 
         function set.computeAeroCoeffs(self, aeroModelFn)

@@ -4,8 +4,16 @@ classdef ProjectileDynamics < handle
     properties
         projectile
         planet
+    end
 
-        includeParamSTM = true;
+    properties (SetAccess = private)
+        nStates = 0;
+        
+        nEstimatedParams = 0;
+        nEstimatedProjectileParams = 0;
+        nEstimatedPlanetParams = 0;
+
+        includeParamSTM = false;
     end
     
 
@@ -19,6 +27,17 @@ classdef ProjectileDynamics < handle
 
             self.projectile = projectile;
             self.planet = planet;
+        end
+
+
+        function update(self)
+            self.nStates = self.projectile.nStates;
+
+            self.nEstimatedProjectileParams = self.projectile.nEstimatedParams;
+            self.nEstimatedPlanetParams = self.planet.nEstimatedParams;
+            self.nEstimatedParams = self.nEstimatedProjectileParams + self.nEstimatedPlanetParams;
+
+            self.includeParamSTM = logical(self.nEstimatedParams);
         end
 
         
@@ -67,8 +86,6 @@ classdef ProjectileDynamics < handle
         % Derivative methods =======================================================================
 
         function stateDeriv = computeStateDeriv(self, state)
-            nStates = self.projectile.nStates;
-
             vx = state(4);
             vy = state(5);
             vz = state(6);
@@ -81,7 +98,7 @@ classdef ProjectileDynamics < handle
 
             F = FGrav + FAero;
 
-            stateDeriv = zeros(nStates, 1);
+            stateDeriv = zeros(self.nStates, 1);
             stateDeriv(1) = vx;
             stateDeriv(2) = vy;
             stateDeriv(3) = vz;
@@ -92,11 +109,9 @@ classdef ProjectileDynamics < handle
 
 
         function augStateDeriv = computeAugStateDeriv(self, augState)
-            nStates = self.projectile.nStates;
+            iStateEnd = self.nStates;
+            iStateSTMEnd = self.nStates + self.nStates ^ 2;
 
-            iStateEnd = nStates;
-            iStateSTMEnd = nStates + nStates ^ 2;
-            
             state = augState(1:iStateEnd);
             stateSTM = augState((iStateEnd + 1):iStateSTMEnd);
             if self.includeParamSTM
@@ -115,18 +130,18 @@ classdef ProjectileDynamics < handle
 
 
         function [stateSTMDeriv, paramSTMDeriv] = computeSTMDerivs(self, state, stateSTM, paramSTM)
-            nStates = self.projectile.nStates;
-            
-            stateSTM = reshape(stateSTM, [nStates, nStates]);
+            stateSTM = reshape(stateSTM, [self.nStates, self.nStates]);
+
             stateA = self.computeStateJacobian(state);
+
             stateSTMDeriv = stateA * stateSTM;
             stateSTMDeriv = stateSTMDeriv(:);
 
             if self.includeParamSTM
-                nEstimatedParams = self.projectile.nEstimatedParams + self.planet.nEstimatedParams;
+                paramSTM = reshape(paramSTM, [self.nStates, self.nEstimatedParams]);
 
-                paramSTM = reshape(paramSTM, [nStates, nEstimatedParams]);
                 paramA = self.computeParamJacobian(state);
+
                 paramSTMDeriv = stateA * paramSTM + paramA;
                 paramSTMDeriv = paramSTMDeriv(:);
             end
@@ -136,12 +151,10 @@ classdef ProjectileDynamics < handle
         % Jacobian methods =========================================================================
 
         function A = computeStateJacobian(self, state)
-            nStates = self.projectile.nStates;
-
-            A = zeros(nStates);
+            A = zeros(self.nStates);
             
             pertFactor = 1E-04;
-            for i = 1:nStates
+            for i = 1:self.nStates
                 delta = pertFactor * (1 + abs(state(i)));
 
                 statePlus = state;
@@ -160,15 +173,10 @@ classdef ProjectileDynamics < handle
 
 
         function A = computeParamJacobian(self, state)
-            nStates = self.projectile.nStates;
-            nEstimatedProjectileParams = self.projectile.nEstimatedParams;
-            nEstimatedPlanetParams = self.planet.nEstimatedParams;
-            nEstimatedParams = nEstimatedProjectileParams + nEstimatedPlanetParams;
-
-            A = zeros(nStates, nEstimatedParams);
+            A = zeros(self.nStates, self.nEstimatedParams);
             
             pertFactor = 1E-04;
-            for i = 1:nEstimatedProjectileParams
+            for i = 1:self.nEstimatedProjectileParams
                 paramIdx = self.projectile.estimatedParamIdxs(i);
                 param = self.projectile.params(paramIdx);
 
@@ -189,7 +197,7 @@ classdef ProjectileDynamics < handle
                 self.projectile.params(paramIdx) = param;
             end
 
-            for i = 1:nEstimatedPlanetParams
+            for i = 1:self.nEstimatedPlanetParams
                 paramIdx = self.planet.estimatedParamIdxs(i);
                 param = self.planet.params(paramIdx);
 
@@ -205,7 +213,7 @@ classdef ProjectileDynamics < handle
 
                 stateDerivMinus = self.computeStateDeriv(state);
 
-                A(:, nEstimatedProjectileParams + i) = (stateDerivPlus - stateDerivMinus) / (2 * delta);
+                A(:, self.nEstimatedProjectileParams + i) = (stateDerivPlus - stateDerivMinus) / (2 * delta);
 
                 self.planet.params(paramIdx) = param;
             end

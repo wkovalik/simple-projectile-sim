@@ -47,6 +47,11 @@ classdef Sensor < handle
 
         % Update methods ===========================================================================
 
+        function update(self)
+            self.updateParams();
+        end
+        
+
         function updateParams(self)
             self.params = [];
         end

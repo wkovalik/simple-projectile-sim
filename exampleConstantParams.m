@@ -29,7 +29,7 @@ function propagateTruthTrajectory()
     earth.paramDefs.vWindx.value = -5;
     earth.paramDefs.vWindy.value = 10;
     
-    earth.updateParams();
+    earth.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -40,12 +40,10 @@ function propagateTruthTrajectory()
     projectile.stateDef.time = 0;
     projectile.stateDef.state = [0; 0; 0; 30; 0; -330];
     
-    projectile.updateState();
-    
     % Set projectile parameters
     projectile.paramDefs.CD.value = 0.15;
     
-    projectile.updateParams();
+    projectile.update();
     
     % Create projectile dynamics
     projectileDynamics = ProjectileDynamics(projectile, earth);
@@ -63,7 +61,7 @@ function propagateTruthTrajectory()
     % Set sensor parameters
     rangeSensor.paramDefs.x.value = -1;
     
-    rangeSensor.updateParams();
+    rangeSensor.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -78,7 +76,7 @@ function propagateTruthTrajectory()
     % Set sensor parameters
     directionSensor.paramDefs.x.value = -1;
     
-    directionSensor.updateParams();
+    directionSensor.update();
 
     % ----------------------------------------------------------------------------------------------
 
@@ -122,7 +120,7 @@ function output = runEstimator()
     earthModel.paramDefs.vWindy.covar = 50 ^ 2;
     earthModel.paramDefs.vWindy.isEstimated = true;
     
-    earthModel.updateParams();
+    earthModel.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -134,14 +132,12 @@ function output = runEstimator()
     projectileModel.stateDef.state = [0; 0; 0; 30; 0; -330];
     projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
     
-    projectileModel.updateState();
-    
     % Set projectile parameters and parameter covariances
     projectileModel.paramDefs.CD.value = 0.165;
     projectileModel.paramDefs.CD.covar = 0.025 ^ 2;
     projectileModel.paramDefs.CD.isEstimated = true;
     
-    projectileModel.updateParams();
+    projectileModel.update();
     
     % Create projectile dynamics model
     projectileModelDynamics = ProjectileDynamics(projectileModel, earthModel);
@@ -158,7 +154,7 @@ function output = runEstimator()
     % Set sensor parameters
     rangeSensorModel.paramDefs.x.value = -1;
     
-    rangeSensorModel.updateParams();
+    rangeSensorModel.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -172,7 +168,7 @@ function output = runEstimator()
     % Set sensor parameters
     directionSensorModel.paramDefs.x.value = -1;
     
-    directionSensorModel.updateParams();
+    directionSensorModel.update();
 
     % ----------------------------------------------------------------------------------------------
 
