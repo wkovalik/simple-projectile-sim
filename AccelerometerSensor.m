@@ -15,7 +15,9 @@ classdef AccelerometerSensor < Sensor
                 error("Not enough input arguments. Requires projectile and projectileDynamics.")
             end
             
-            self = self@Sensor(projectile, []);
+            self = self@Sensor();
+
+            self.projectile = projectile;
             self.projectileDynamics = projectileDynamics;
         end
 
@@ -72,6 +74,17 @@ classdef AccelerometerSensor < Sensor
             unit_v = [vx; vy; vz] / V;
 
             a = dot(a, unit_v);
+        end
+
+
+        % Setters ==================================================================================
+
+        function set.projectileDynamics(self, projectileDynamics)
+            if Settings.VALIDATE_FLAG
+                self.projectileDynamics = Validator.validateType(projectileDynamics, "ProjectileDynamics");
+            else
+                self.projectileDynamics = projectileDynamics;
+            end
         end
     end
 end

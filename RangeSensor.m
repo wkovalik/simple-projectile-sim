@@ -17,13 +17,8 @@ classdef RangeSensor < Sensor
     methods
         % Constructor ==============================================================================
 
-        function self = RangeSensor(projectile, planet)
-            if nargin == 0
-                projectile = [];
-                planet = [];
-            end
-
-            self = self@Sensor(projectile, planet);
+        function self = RangeSensor()
+            self = self@Sensor();
 
             self.paramDefs.x = ParamDef(self.DEFAULT_X);
             self.paramDefs.y = ParamDef(self.DEFAULT_Y);

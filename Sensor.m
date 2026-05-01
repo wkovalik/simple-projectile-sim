@@ -10,11 +10,8 @@ classdef Sensor < handle
         % considerParamCovar = [];
 
         measNoiseCovar = [];
-        invMeasNoiseCovar = [];
-        measNoiseStdDev = [];
 
         samplePeriod = 0;
-        nextSampleTime = 0;
 
         projectile
         planet
@@ -25,6 +22,11 @@ classdef Sensor < handle
         
         % nConsiderParams = 0;
         % considerParamIdxs = [];
+
+        invMeasNoiseCovar = [];
+        measNoiseStdDev = [];
+
+        nextSampleTime = 0;
     end
     
     properties (Abstract, Constant)
@@ -35,12 +37,7 @@ classdef Sensor < handle
     methods
         % Constructor ==============================================================================
 
-        function self = Sensor(projectile, planet)
-            if nargin == 2
-                self.projectile = projectile;
-                self.planet = planet;
-            end
-
+        function self = Sensor()
             self.measNoiseCovar = zeros(self.nMeas);
         end
 
@@ -204,6 +201,22 @@ classdef Sensor < handle
                 self.nextSampleTime = Validator.validateType(nextSampleTime, "double");
             else
                 self.nextSampleTime = nextSampleTime;
+            end
+        end
+
+        function set.projectile(self, projectile)
+            if Settings.VALIDATE_FLAG
+                self.projectile = Validator.validateType(projectile, "Projectile");
+            else
+                self.projectile = projectile;
+            end
+        end
+
+        function set.planet(self, planet)
+            if Settings.VALIDATE_FLAG
+                self.planet = Validator.validateType(planet, "Planet");
+            else
+                self.planet = planet;
             end
         end
     end

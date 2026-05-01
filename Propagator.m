@@ -30,8 +30,6 @@ classdef Propagator < handle
         % Propagate methods ========================================================================
         
         function [timeHistory, stateHistory] = propagate(self, finalTime)
-            self.projectileDynamics.update();
-
             % Set integrator derivative function
             self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeStateDeriv(varargin{:});  % See Note 1
 
@@ -85,8 +83,6 @@ classdef Propagator < handle
 
 
         function [timeHistory, stateHistory, stateSTMHistory, paramSTMHistory] = propagateWithSTM(self, finalTime)
-            self.projectileDynamics.update();
-
             % Set integrator derivative function
             self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeAugStateDeriv(varargin{:});  % See Note 1
             
@@ -197,8 +193,6 @@ classdef Propagator < handle
 
 
         function [timeHistory, stateHistory, measHistory] = propagateWithSensors(self, finalTime, sensorArray)
-            self.projectileDynamics.update();
-            
             % Throw warning if integrator step size is too coarse for sensor sampling rates
             if Utils.isIntegratorStepTooCoarse(sensorArray, self.integrator.stepPeriod)
                 warning("Integrator step size is too coarse. At least one sensor will not accurately sample on time.")
@@ -299,6 +293,25 @@ classdef Propagator < handle
 
             % Remove all unused entries in sensor measurement history
             measHistory(:, (nSamples + 1):end) = [];
+        end
+
+
+        % Setters ==================================================================================
+
+        function set.projectileDynamics(self, projectileDynamics)
+            if Settings.VALIDATE_FLAG
+                self.projectileDynamics = Validator.validateType(projectileDynamics, "ProjectileDynamics");
+            else
+                self.projectileDynamics = projectileDynamics;
+            end
+        end
+
+        function set.integrator(self, integrator)
+            if Settings.VALIDATE_FLAG
+                self.integrator = Validator.validateType(integrator, "Integrator");
+            else
+                self.integrator = integrator;
+            end
         end
     end
 end

@@ -17,13 +17,8 @@ classdef DirectionSensor < Sensor
     methods
         % Constructor ==============================================================================
 
-        function self = DirectionSensor(projectile, planet)
-            if nargin == 0
-                projectile = [];
-                planet = [];
-            end
-
-            self = self@Sensor(projectile, planet);
+        function self = DirectionSensor()
+            self = self@Sensor();
 
             self.paramDefs.x = ParamDef(self.DEFAULT_X);
             self.paramDefs.y = ParamDef(self.DEFAULT_Y);
