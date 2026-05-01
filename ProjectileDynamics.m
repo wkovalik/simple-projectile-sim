@@ -7,6 +7,10 @@ classdef ProjectileDynamics < handle
 
         includeParamSTM = false;
     end
+
+    properties (SetAccess = private)
+        computeStateJacobian
+    end
     
 
     methods
@@ -19,6 +23,14 @@ classdef ProjectileDynamics < handle
 
             self.projectile = projectile;
             self.planet = planet;
+            
+            switch Settings.DEFAULT_STATE_JACOBIAN_METHOD
+                case "analytic"
+                    self.computeStateJacobian = @self.computeAnalyticStateJacobian;
+                
+                case "numeric"
+                    self.computeStateJacobian = @self.computeNumericStateJacobian;
+            end
         end
 
         
@@ -61,6 +73,50 @@ classdef ProjectileDynamics < handle
             F(1) = k * VAtm * vAtmx;
             F(2) = k * VAtm * vAtmy;
             F(3) = k * VAtm * vAtmz;
+        end
+
+
+        % function dF_dv = computeGravityForcePartials(self)
+        %     dF_dv = zeros(3, 3);
+        % end
+
+
+        function dF_dv = computeAeroForcePartials(self, state)
+            z = state(3);
+            vx = state(4);
+            vy = state(5);
+            vz = state(6);
+
+            S = self.projectile.params(self.projectile.SIdx);
+            
+            h = -z;
+            [rho, a] = self.planet.computeAtmosphere(h);
+            [vWindx, vWindy] = self.planet.computeWind(h);
+            
+            vAtmx = vx - vWindx;
+            vAtmy = vy - vWindy;
+            vAtmz = vz;
+            VAtm = (vAtmx ^ 2 + vAtmy ^ 2 + vAtmz ^ 2) ^ 0.5;
+
+            mach = VAtm / a;
+
+            CD = self.projectile.computeAeroCoeffs(mach);
+            
+            k = -(rho * S * CD / 2);
+
+            dF_dv = zeros(3, 3);
+
+            dF_dv(1, 1) = k * (vAtmx ^ 2 / VAtm + VAtm);
+            dF_dv(2, 1) = k * (vAtmx * vAtmy / VAtm);
+            dF_dv(3, 1) = k * (vAtmx * vAtmz / VAtm);
+
+            dF_dv(1, 2) = dF_dv(2, 1);
+            dF_dv(2, 2) = k * (vAtmy ^ 2 / VAtm + VAtm);
+            dF_dv(3, 2) = k * (vAtmy * vAtmz / VAtm);
+
+            dF_dv(1, 3) = dF_dv(3, 1);
+            dF_dv(2, 3) = dF_dv(3, 2);
+            dF_dv(3, 3) = k * (vAtmz ^ 2 / VAtm + VAtm);
         end
 
         
@@ -139,11 +195,41 @@ classdef ProjectileDynamics < handle
 
         % Jacobian methods =========================================================================
 
-        function A = computeStateJacobian(self, state)
+        function A = computeAnalyticStateJacobian(self, state)
             nStates = self.projectile.nStates;
+
+            m = self.projectile.params(self.projectile.mIdx);
+
+            % dFGrav_dv = self.computeGravityForcePartials();
+            % dFAero_dv = self.computeAeroForcePartials(state);
+            % dF_ddv = dFGrav_dv + dFAero_dv;
+
+            dF_dv = self.computeAeroForcePartials(state);
 
             A = zeros(nStates);
             
+            A(1, 4) = 1;
+            A(4, 4) = dF_dv(1, 1) / m;
+            A(5, 4) = dF_dv(2, 1) / m;
+            A(6, 4) = dF_dv(3, 1) / m;
+
+            A(2, 5) = 1;
+            A(4, 5) = dF_dv(1, 2) / m;
+            A(5, 5) = dF_dv(2, 2) / m;
+            A(6, 5) = dF_dv(3, 2) / m;
+
+            A(3, 6) = 1;
+            A(4, 6) = dF_dv(1, 3) / m;
+            A(5, 6) = dF_dv(2, 3) / m;
+            A(6, 6) = dF_dv(3, 3) / m;
+        end
+
+
+        function A = computeNumericStateJacobian(self, state)
+            nStates = self.projectile.nStates;
+
+            A = zeros(nStates);
+
             pertFactor = 1E-04;
             for i = 1:nStates
                 delta = pertFactor * (1 + abs(state(i)));

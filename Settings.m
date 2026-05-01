@@ -7,6 +7,8 @@ classdef Settings
         DEFAULT_INTERP_METHOD = "linear";
         DEFAULT_EXTRAP_METHOD = "linear";  % See Note 2
         
+        DEFAULT_STATE_JACOBIAN_METHOD = "analytic";
+        DEFAULT_PARAM_JACOBIAN_METHOD = "numeric";
         DEFAULT_JACOBIAN_PERT_FACTOR = 1E-04;
 
         DEFAULT_MAX_ITERS = 10;
