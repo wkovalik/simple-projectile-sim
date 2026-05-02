@@ -3,7 +3,7 @@ clear; clc; close all;
 rng(0);
 
 propagateTruthTrajectory();
-runEstimator();
+runEstimator("sequential");
 plotResults();
 
 load("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
@@ -89,8 +89,8 @@ function propagateTruthTrajectory()
 end
 
 
-function output = runEstimator()
-    fprintf("Running estimator... \n")
+function output = runEstimator(option)
+    fprintf("Running %s estimator... \n", option)
 
     % ----------------------------------------------------------------------------------------------
 
@@ -151,7 +151,14 @@ function output = runEstimator()
     % ----------------------------------------------------------------------------------------------
     
     % Create estimator (default integrator)
-    estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+    switch option
+        case "batch"
+            estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+        case "sequential"
+            estimator = SequentialEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+        otherwise
+            error("Invalid estimator option.")
+    end
     
     % Run estimator
     load("./log/sensorLog.mat", "measHistory");
@@ -206,10 +213,10 @@ function plotResults()
     postAccResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 3);
 
     % Get convergence histories
-    vHistory = output.stateHistory(4:6, :);
-    vStdDevHistory = output.stateCovarHistory([22, 29, 36], :) .^ 0.5;
-    vPlusHistory = vHistory + vStdDevHistory;
-    vMinusHistory = vHistory - vStdDevHistory;
+    vIterations = output.state_0Iterations(4:6, :);
+    vStdDevIterations = output.stateCovar_0Iterations([22, 29, 36], :) .^ 0.5;
+    vPlusIterations = vIterations + vStdDevIterations;
+    vMinusIterations = vIterations - vStdDevIterations;
 
     % ----------------------------------------------------------------------------------------------
 
@@ -306,9 +313,9 @@ function plotResults()
     figure(4)
 
     subplot(1, 3, 1)
-    patch([0:nIterations, flip(0:nIterations)], [vPlusHistory(1, :), flip(vMinusHistory(1, :))], [1, 0.8, 0.8], "EdgeColor", "none")
+    patch([0:nIterations, flip(0:nIterations)], [vPlusIterations(1, :), flip(vMinusIterations(1, :))], [1, 0.8, 0.8], "EdgeColor", "none")
     hold on
-    plot(0:nIterations, vHistory(1, :), 'rx-', "LineWidth", 1.5)
+    plot(0:nIterations, vIterations(1, :), 'rx-', "LineWidth", 1.5)
     hold off
     box on
     xlim([1, nIterations])
@@ -316,9 +323,9 @@ function plotResults()
     ylabel("v_x (m/s)")
 
     subplot(1, 3, 2)
-    patch([0:nIterations, flip(0:nIterations)], [vPlusHistory(2, :), flip(vMinusHistory(2, :))], [1, 0.8, 0.8], "EdgeColor", "none")
+    patch([0:nIterations, flip(0:nIterations)], [vPlusIterations(2, :), flip(vMinusIterations(2, :))], [1, 0.8, 0.8], "EdgeColor", "none")
     hold on
-    plot(0:nIterations, vHistory(2, :), 'rx-', "LineWidth", 1.5)
+    plot(0:nIterations, vIterations(2, :), 'rx-', "LineWidth", 1.5)
     hold off
     box on
     xlim([1, nIterations])
@@ -326,9 +333,9 @@ function plotResults()
     ylabel("v_y (m/s)")
 
     subplot(1, 3, 3)
-    patch([0:nIterations, flip(0:nIterations)], [vPlusHistory(3, :), flip(vMinusHistory(3, :))], [1, 0.8, 0.8], "EdgeColor", "none")
+    patch([0:nIterations, flip(0:nIterations)], [vPlusIterations(3, :), flip(vMinusIterations(3, :))], [1, 0.8, 0.8], "EdgeColor", "none")
     hold on
-    plot(0:nIterations, vHistory(3, :), 'rx-', "LineWidth", 1.5)
+    plot(0:nIterations, vIterations(3, :), 'rx-', "LineWidth", 1.5)
     hold off
     box on
     xlim([1, nIterations])

@@ -8,7 +8,7 @@ clear; clc; close all;
 rng(0);
 
 propagateTruthTrajectory();
-runEstimator();
+runEstimator("sequential");
 plotResults();
 
 load("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
@@ -103,8 +103,8 @@ function propagateTruthTrajectory()
 end
 
 
-function output = runEstimator()
-    fprintf("Running estimator... \n")
+function output = runEstimator(option)
+    fprintf("Running %s estimator... \n", option)
 
     % ----------------------------------------------------------------------------------------------
     
@@ -181,7 +181,14 @@ function output = runEstimator()
     % ----------------------------------------------------------------------------------------------
     
     % Create estimator (default integrator)
-    estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+    switch option
+        case "batch"
+            estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+        case "sequential"
+            estimator = SequentialEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+        otherwise
+            error("Invalid estimator option.")
+    end
     
     % Run estimator
     load("./log/sensorLog.mat", "measHistory");
@@ -236,20 +243,20 @@ function plotResults()
     postAccResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 3);
     
     % Get convergence histories
-    CDHistory = output.paramHistory(1, :);
-    CDStdDevHistory = output.paramCovarHistory(1, :) .^ 0.5;
-    CDPlusHistory = CDHistory + CDStdDevHistory;
-    CDMinusHistory = CDHistory - CDStdDevHistory;
+    CDIterations = output.paramIterations(1, :);
+    CDStdDevIterations = output.paramCovarIterations(1, :) .^ 0.5;
+    CDPlusIterations = CDIterations + CDStdDevIterations;
+    CDMinusIterations = CDIterations - CDStdDevIterations;
 
-    vWindxHistory = output.paramHistory(2, :);
-    vWindxStdDevHistory = output.paramCovarHistory(5, :) .^ 0.5;
-    vWindxPlusHistory = vWindxHistory + vWindxStdDevHistory;
-    vWindxMinusHistory = vWindxHistory - vWindxStdDevHistory;
+    vWindxIterations = output.paramIterations(2, :);
+    vWindxStdDevIterations = output.paramCovarIterations(5, :) .^ 0.5;
+    vWindxPlusIterations = vWindxIterations + vWindxStdDevIterations;
+    vWindxMinusIterations = vWindxIterations - vWindxStdDevIterations;
 
-    vWindyHistory = output.paramHistory(3, :);
-    vWindyStdDevHistory = output.paramCovarHistory(9, :) .^ 0.5;
-    vWindyPlusHistory = vWindyHistory + vWindyStdDevHistory;
-    vWindyMinusHistory = vWindyHistory - vWindyStdDevHistory;
+    vWindyIterations = output.paramIterations(3, :);
+    vWindyStdDevIterations = output.paramCovarIterations(9, :) .^ 0.5;
+    vWindyPlusIterations = vWindyIterations + vWindyStdDevIterations;
+    vWindyMinusIterations = vWindyIterations - vWindyStdDevIterations;
     
     % ----------------------------------------------------------------------------------------------
     
@@ -346,9 +353,9 @@ function plotResults()
     figure(4)
     
     subplot(1, 3, 1)
-    patch([0:nIterations, flip(0:nIterations)], [CDPlusHistory, flip(CDMinusHistory)], [1, 0.8, 0.8], "EdgeColor", "none")
+    patch([0:nIterations, flip(0:nIterations)], [CDPlusIterations, flip(CDMinusIterations)], [1, 0.8, 0.8], "EdgeColor", "none")
     hold on
-    plot(0:nIterations, CDHistory, 'rx-', "LineWidth", 1.5)
+    plot(0:nIterations, CDIterations, 'rx-', "LineWidth", 1.5)
     hold off
     box on
     xlim([1, nIterations])
@@ -356,9 +363,9 @@ function plotResults()
     ylabel("C_D")
 
     subplot(1, 3, 2)
-    patch([0:nIterations, flip(0:nIterations)], [vWindxPlusHistory, flip(vWindxMinusHistory)], [1, 0.8, 0.8], "EdgeColor", "none")
+    patch([0:nIterations, flip(0:nIterations)], [vWindxPlusIterations, flip(vWindxMinusIterations)], [1, 0.8, 0.8], "EdgeColor", "none")
     hold on
-    plot(0:nIterations, vWindxHistory, 'rx-', "LineWidth", 1.5)
+    plot(0:nIterations, vWindxIterations, 'rx-', "LineWidth", 1.5)
     hold off
     box on
     xlim([1, nIterations])
@@ -366,9 +373,9 @@ function plotResults()
     ylabel("vWind_x (m/s)")
 
     subplot(1, 3, 3)
-    patch([0:nIterations, flip(0:nIterations)], [vWindyPlusHistory, flip(vWindyMinusHistory)], [1, 0.8, 0.8], "EdgeColor", "none")
+    patch([0:nIterations, flip(0:nIterations)], [vWindyPlusIterations, flip(vWindyMinusIterations)], [1, 0.8, 0.8], "EdgeColor", "none")
     hold on
-    plot(0:nIterations, vWindyHistory, 'rx-', "LineWidth", 1.5)
+    plot(0:nIterations, vWindyIterations, 'rx-', "LineWidth", 1.5)
     hold off
     box on
     xlim([1, nIterations])

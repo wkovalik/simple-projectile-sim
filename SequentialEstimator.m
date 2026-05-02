@@ -1,4 +1,7 @@
-classdef BatchEstimator < handle
+classdef SequentialEstimator < handle
+    % TODO: If constructor is the same as Batch, make Estimator parent class with common constructor
+    % and abstract solve() method
+
     % TODO: Currently assumes init projectile time = estimate time epoch. Need to propagate if not
 
     properties
@@ -23,7 +26,7 @@ classdef BatchEstimator < handle
     methods
         % Constructor ==============================================================================
 
-        function self = BatchEstimator(projectileModelDynamics, sensorModelArray, integrator)
+        function self = SequentialEstimator(projectileModelDynamics, sensorModelArray, integrator)
             % Set handle for projectile model dynamics
             self.projectileModelDynamics = projectileModelDynamics;
             
@@ -152,10 +155,24 @@ classdef BatchEstimator < handle
                 
                 % ----------------------------------------------------------------------------------
                 
-                % Initialize postfit normal vector and information matrix (i.e., inverse covariance) for initial time
-                postAugNormal_0 = priorAugStateCovar_0 \ priorAugStateDelta_0;
-                postAugStateInvCovar_0 = inv(priorAugStateCovar_0);
+                % Note: t_i = current measurement time
+                %       t_j = t_(i-1) = previous measurement time
                 
+                % Initialize postfit state deviation and covariance at previous measurement time (i.e., initial time here)
+                postAugStateDelta_j = priorAugStateDelta_0;
+                postAugStateCovar_j = priorAugStateCovar_0;
+                
+                % Initialize STMs at previous measurement time (i.e., initial time here)
+                invStateSTM_j0 = eye(nStates);
+                if self.includeParamSTM
+                    paramSTM_j0 = zeros(nStates, nEstimatedParams);
+    
+                    invSTM_j0 = [invStateSTM_j0,                   -invStateSTM_j0 * paramSTM_j0;
+                                 zeros(nEstimatedParams, nStates),  eye(nEstimatedParams)];
+                else
+                    invSTM_j0 = invStateSTM_j0;
+                end
+    
                 % Initialize measurement residual history
                 measResidualHistory = zeros(size(measHistory, 1), nSamples);
                 measResidualHistory(1, :) = measHistory(1, :);
@@ -168,59 +185,89 @@ classdef BatchEstimator < handle
                     
                     % Get nominal state and STMs at current measurement time
                     nomState_i = nomStateHistory(:, i);
-
+    
                     stateSTM_i0 = stateSTMHistory(:, i);
                     stateSTM_i0 = reshape(stateSTM_i0, [nStates, nStates]);
                     if self.includeParamSTM
                         paramSTM_i0 = paramSTMHistory(:, i);
                         paramSTM_i0 = reshape(paramSTM_i0, [nStates, nEstimatedParams]);
                     end
+    
+                    if self.includeParamSTM
+                        STM_i0 = [stateSTM_i0,                      paramSTM_i0;
+                                  zeros(nEstimatedParams, nStates), eye(nEstimatedParams)];
+                    else
+                        STM_i0 = stateSTM_i0;
+                    end
                     
+                    % Compute step STM from previous measurement time to current measurement time
+                    STM_ij = STM_i0 * invSTM_j0;
+    
+                    % Compute prefit state deviation and covariance at current measurement time
+                    priorAugStateDelta_i = STM_ij * postAugStateDelta_j;
+                    priorAugStateCovar_i = STM_ij * postAugStateCovar_j * STM_ij';
+                    
+                    % Above: Time update
+                    % ------------------------------------------------------------------------------
+                    % Below: Measurement update
+
                     % Get observed measurement and computed measurement at current measurement time
                     nMeas = sensorModel_i.nMeas;
                     iMeasEnd = 3 + (nMeas - 1);
-
+    
                     observedMeas_i = measHistory(3:iMeasEnd, i);
                     computedMeas_i = sensorModel_i.computeMeasurement(nomState_i);
     
                     % Compute measurement residual
                     measResidual_i = observedMeas_i - computedMeas_i;
                     measResidualHistory(3:iMeasEnd, i) = measResidual_i;
-                    
+    
                     % Compute measurement sensitivity matrices (i.e., Jacobians) at current measurement time
                     stateH_i = sensorModel_i.computeStateJacobian(nomState_i);
                     if self.includeParamSTM
                         paramH_i = sensorModel_i.computeParamJacobian(nomState_i);
-                    end
-                    
-                    % Map measurement sensitivity matrices to initial time
-                    mappedStateH_i0 = stateH_i * stateSTM_i0;
-                    if self.includeParamSTM
-                        mappedParamH_i0 = stateH_i * paramSTM_i0 + paramH_i;
-
-                        mappedH_i0 = [mappedStateH_i0, mappedParamH_i0];
-                    else
-                        mappedH_i0 = mappedStateH_i0;
-                    end
-                    
-                    invMeasNoiseCovar_i = sensorModel_i.invMeasNoiseCovar;
-                    
-                    % Accumulate postfit normal vector and information matrix
-                    addAugNormal_0 = mappedH_i0' * invMeasNoiseCovar_i * measResidual_i;
-                    addAugStateInvCovar_0 = mappedH_i0' * invMeasNoiseCovar_i * mappedH_i0;
     
-                    postAugNormal_0 = postAugNormal_0 + addAugNormal_0;
-                    postAugStateInvCovar_0 = postAugStateInvCovar_0 + addAugStateInvCovar_0;
-                end
+                        H_i = [stateH_i, paramH_i];
+                    else
+                        H_i = stateH_i;
+                    end
+    
+                    measNoiseCovar_i = sensorModel_i.measNoiseCovar;
 
+                    % Compute filter gain (i.e., Kalman gain) matrix
+                    measResidualGain_i = priorAugStateCovar_i * H_i' / (H_i * priorAugStateCovar_i * H_i' + measNoiseCovar_i);
+    
+                    % Compute postfit state deviation and covariance at current measurement time
+                    postAugStateDelta_i = priorAugStateDelta_i + measResidualGain_i * (measResidual_i - H_i * priorAugStateDelta_i);
+                    postAugStateCovar_i = (eye(nAugStates) - measResidualGain_i * H_i) * priorAugStateCovar_i * (eye(nAugStates) - measResidualGain_i * H_i)' + ...
+                                          measResidualGain_i * measNoiseCovar_i * measResidualGain_i';
+
+                    % Store results (current measurement time now becomes previous measurement time)
+                    postAugStateDelta_j = postAugStateDelta_i;
+                    postAugStateCovar_j = postAugStateCovar_i;
+                    
+                    invStateSTM_j0 = inv(stateSTM_i0);
+                    if self.includeParamSTM
+                        paramSTM_j0 = paramSTM_i0;
+    
+                        invSTM_j0 = [invStateSTM_j0,                   -invStateSTM_j0 * paramSTM_j0;
+                                     zeros(nEstimatedParams, nStates),  eye(nEstimatedParams)];
+                    else
+                        invSTM_j0 = invStateSTM_j0;
+                    end
+                end
+    
                 output.iterationData{ii}.measResidualHistory = measResidualHistory;
-                
+    
                 % ----------------------------------------------------------------------------------
                 
                 % Compute postfit state deviation and covariance at initial time
-                postAugStateDelta_0 = postAugStateInvCovar_0 \ postAugNormal_0;
-                postAugStateCovar_0 = inv(postAugStateInvCovar_0);
-
+                % (i.e., map postfit state deviation and covariance at final measurement time to initial time)
+                invSTM_i0 = invSTM_j0;
+    
+                postAugStateDelta_0 = invSTM_i0 * postAugStateDelta_i;
+                postAugStateCovar_0 = invSTM_i0 * postAugStateCovar_i * invSTM_i0';
+    
                 if ii == 1
                     % Determine if state has converged
                     if max(abs(postAugStateDelta_0 ./ priorAugState_0)) < Settings.DEFAULT_CONVERGENCE_TOL
@@ -238,7 +285,7 @@ classdef BatchEstimator < handle
                     % Update postfit state
                     postAugState_0 = postAugState_0 + postAugStateDelta_0;
                 end
-
+    
                 fprintf("%i\t\t\t", ii)
                 fprintf("%.4f\t", postAugState_0(:))
                 fprintf("\n")
@@ -248,20 +295,20 @@ classdef BatchEstimator < handle
                 
                 % Shift prefit state deviation at initial time
                 priorAugStateDelta_0 = priorAugStateDelta_0 - postAugStateDelta_0;
-
+    
                 % ----------------------------------------------------------------------------------
                 
                 % Extract postfit projectile state at initial time
                 postState_0 = postAugState_0(1:nStates);
                 postStateCovar_0 = postAugStateCovar_0(1:nStates, 1:nStates);
-
+    
                 output.state_0Iterations(:, ii + 1) = postState_0;
                 output.stateCovar_0Iterations(:, ii + 1) = postStateCovar_0(:);
                 
                 % Update projectile model state (for nominal trajectory on next iteration)
                 self.projectileModel.time = 0;  % See TODO
                 self.projectileModel.state = postState_0;
-
+    
                 if self.includeParamSTM
                     % Extract postfit parameters
                     postParams = postAugState_0((nStates + 1):end);
@@ -288,18 +335,19 @@ classdef BatchEstimator < handle
                     self.planetModel.estimatedParams = postPlanetParams;
                     self.planetModel.estimatedParamCovar = postPlanetParamCovar;
                 end
-
+    
                 % ----------------------------------------------------------------------------------
-
+    
                 if hasConverged
                     fprintf("Converged!\n")  % Break out if converged
                     break
-
+    
                 elseif ii == nMaxIterations
                     warning("Failed to converge within maximum number of iterations.")
                 end
+
             end
-            
+
             % --------------------------------------------------------------------------------------
             % End estimation loop
             % --------------------------------------------------------------------------------------
@@ -354,81 +402,6 @@ classdef BatchEstimator < handle
 
                 output.augState_0Iterations(:, (nIterations + 2):end) = [];
                 output.augStateCovar_0Iterations(:, (nIterations + 2):end) = [];
-            end
-        end
-
-
-        % Setters ==================================================================================
-
-        function set.projectileModelDynamics(self, projectileModelDynamics)
-            if Settings.VALIDATE_FLAG
-                self.projectileModelDynamics = Validator.validateType(projectileModelDynamics, "ProjectileDynamics");
-            else
-                self.projectileModelDynamics = projectileModelDynamics;
-            end
-        end
-
-        function set.projectileModel(self, projectileModel)
-            if Settings.VALIDATE_FLAG
-                self.projectileModel = Validator.validateType(projectileModel, "Projectile");
-            else
-                self.projectileModel = projectileModel;
-            end
-        end
-
-        function set.planetModel(self, planetModel)
-            if Settings.VALIDATE_FLAG
-                self.planetModel = Validator.validateType(planetModel, "Planet");
-            else
-                self.planetModel = planetModel;
-            end
-        end
-
-        function set.integrator(self, integrator)
-            if Settings.VALIDATE_FLAG
-                self.integrator = Validator.validateType(integrator, "Integrator");
-            else
-                self.integrator = integrator;
-            end
-        end
-
-        function set.propagator(self, propagator)
-            if Settings.VALIDATE_FLAG
-                self.propagator = Validator.validateType(propagator, "Propagator");
-            else
-                self.propagator = propagator;
-            end
-        end
-
-        function set.sensorModelArray(self, sensorModelArray)
-            if Settings.VALIDATE_FLAG
-                self.sensorModelArray = Validator.validateType(sensorModelArray, "cell");
-            else
-                self.sensorModelArray = sensorModelArray;
-            end
-        end
-
-        function set.sensorModelIDs(self, sensorModelIDs)
-            if Settings.VALIDATE_FLAG
-                self.sensorModelIDs = Validator.validateType(sensorModelIDs, "double");
-            else
-                self.sensorModelIDs = sensorModelIDs;
-            end
-        end
-
-        function set.sensorModelMap(self, sensorModelMap)
-            if Settings.VALIDATE_FLAG
-                self.sensorModelMap = Validator.validateType(sensorModelMap, "dictionary");
-            else
-                self.sensorModelMap = sensorModelMap;
-            end
-        end
-
-        function set.includeParamSTM(self, includeParamSTM)
-            if Settings.VALIDATE_FLAG
-                self.includeParamSTM = Validator.validateType(includeParamSTM, "logical");
-            else
-                self.includeParamSTM = includeParamSTM;
             end
         end
     end
