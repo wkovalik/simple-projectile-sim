@@ -14,7 +14,7 @@ classdef Planet < handle
         windModel
     end
 
-    properties (SetAccess = private)
+    properties (SetAccess = protected)
         nParams = 0;
 
         nEstimatedParams = 0;

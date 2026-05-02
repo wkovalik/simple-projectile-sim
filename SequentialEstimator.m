@@ -1,71 +1,11 @@
-classdef SequentialEstimator < handle
-    % TODO: If constructor is the same as Batch, make Estimator parent class with common constructor
-    % and abstract solve() method
-
+classdef SequentialEstimator < Estimator
     % TODO: Currently assumes init projectile time = estimate time epoch. Need to propagate if not
-
-    properties
-        projectileModelDynamics
-
-        projectileModel
-        planetModel
-
-        integrator
-        propagator
-
-        sensorModelArray
-        sensorModelIDs
-        sensorModelMap
-    end
-
-    properties (SetAccess = private)
-        includeParamSTM = false;
-    end
-
 
     methods
         % Constructor ==============================================================================
 
-        function self = SequentialEstimator(projectileModelDynamics, sensorModelArray, integrator)
-            % Set handle for projectile model dynamics
-            self.projectileModelDynamics = projectileModelDynamics;
-            
-            % Set handle for projectile and planet models (from dynamics model)
-            self.projectileModel = self.projectileModelDynamics.projectile;
-            self.planetModel = self.projectileModelDynamics.planet;
-            
-            % Set handle for integrator
-            if nargin == 3
-                self.integrator = integrator;
-            elseif nargin == 2
-                self.integrator = Integrator();
-            else
-                error("Not enough input arguments. Requires at least projectileModelDynamics and sensorModelArray.")
-            end
-            
-            % Create propagator
-            self.propagator = Propagator(self.projectileModelDynamics, self.integrator);
-            
-            % --------------------------------------------------------------------------------------
-            
-            % Store array of sensor models
-            self.sensorModelArray = sensorModelArray;
-
-            nSensorModels = length(self.sensorModelArray);
-            
-            % Build array of sensor IDs and dictionary of ID -> sensor model mappings
-            self.sensorModelIDs = zeros(nSensorModels, 1);
-            self.sensorModelMap = dictionary();
-
-            for i = 1:nSensorModels
-                % Pass handles for projectile and planet models to each sensor model (necessary to compute Jacobians)
-                sensorModelArray{i}.projectile = self.projectileModel;
-                sensorModelArray{i}.planet = self.planetModel;
-                
-                % Add each sensor model to ID array and dictionary
-                self.sensorModelIDs(i) = sensorModelArray{i}.ID;
-                self.sensorModelMap = insert(self.sensorModelMap, sensorModelArray{i}.ID, sensorModelArray(i));
-            end
+        function self = SequentialEstimator(varargin)
+            self = self@Estimator(varargin{:});
         end
 
 

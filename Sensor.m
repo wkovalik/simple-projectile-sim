@@ -17,7 +17,7 @@ classdef Sensor < handle
         planet
     end
 
-    properties (SetAccess = private)
+    properties (SetAccess = protected)
         nParams = 0;
         
         % nConsiderParams = 0;
