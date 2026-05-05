@@ -1,6 +1,17 @@
 classdef SqrtSequentialEstimator < Estimator
     % TODO: Currently assumes init projectile time = estimate time epoch. Need to propagate if not
 
+    % TODO: If P0 semi-definite (i.e., has zeros on diagonal), should really take square root by
+    % doing chol() on non-zero block diagonal parts, then reassembling back with zero diagonal parts
+    % Ex: P0 = [0,            ->  W0 = [0,
+    %              1, 0.5                  1,
+    %              0.5, 1,                 0.5, 0.8660,
+    %                      0]                           0]
+    % Don't need to worry about cases with zero variance + non-zero cross-covariances since states
+    % with zero variance are fully known (no uncertainty), thus corresponding cross-covariances are
+    % also zero by definition
+    % Current band-aid with .^ 0.5 works only if P0 is diagonal (i.e., zero cross-covariances)
+
     methods
         % Constructor ==============================================================================
 
@@ -41,7 +52,11 @@ classdef SqrtSequentialEstimator < Estimator
 
             priorAugState_0 = [priorState_0; priorParams];
             priorAugStateCovar_0 = blkdiag(priorStateCovar_0, priorParamCovar);
-            priorAugStateCovarSqrt_0 = chol(priorAugStateCovar_0)';
+            try
+                priorAugStateCovarSqrt_0 = chol(priorAugStateCovar_0)';  % P0 is positive definite
+            catch
+                priorAugStateCovarSqrt_0 = priorAugStateCovar_0 .^ 0.5;  % P0 is positive semi-definite. See TODO
+            end
             priorAugStateDelta_0 = zeros(nAugStates, 1);
 
             fprintf("Iteration\tEstimated State\n")
