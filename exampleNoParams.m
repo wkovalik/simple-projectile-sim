@@ -106,6 +106,7 @@ function output = runEstimator(option)
     projectileModel.time = 0;
     projectileModel.stateDef.state = [0; 0; 0; 35; 5; -325];
     projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    % projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
     
     projectileModel.update();
     

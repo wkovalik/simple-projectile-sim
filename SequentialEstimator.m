@@ -210,16 +210,16 @@ classdef SequentialEstimator < Estimator
                 postAugStateCovar_0 = invSTM_i0 * postAugStateCovar_i * invSTM_i0';
     
                 if ii == 1
-                    % Determine if state has converged
-                    if max(abs(postAugStateDelta_0 ./ priorAugState_0)) < Settings.DEFAULT_CONVERGENCE_TOL
+                    % Determine if state has converged (using norm convergence: ||x_i - x_(i-1)|| / ||x_(i-1)||)
+                    if (norm(postAugStateDelta_0) / norm(priorAugState_0)) < Settings.DEFAULT_CONVERGENCE_TOL
                         hasConverged = true;
                     end
                     
                     % Update prefit state (now becomes postfit state)
                     postAugState_0 = priorAugState_0 + postAugStateDelta_0;
                 else
-                    % Determine if state has converged
-                    if max(abs(postAugStateDelta_0 ./ postAugState_0)) < Settings.DEFAULT_CONVERGENCE_TOL
+                    % Determine if state has converged (using norm convergence: ||x_i - x_(i-1)|| / ||x_(i-1)||)
+                    if (norm(postAugStateDelta_0) / norm(postAugState_0)) < Settings.DEFAULT_CONVERGENCE_TOL
                         hasConverged = true;
                     end
                     
