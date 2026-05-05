@@ -47,7 +47,7 @@ classdef AccelerometerSensor < Sensor
             a = dot(a, unit_v);
             
             % Compute noisy acceleration measurement
-            epsa = self.measNoiseStdDev * randn();
+            epsa = self.measNoiseCovarSqrt * randn();
 
             a = a + epsa;
         end

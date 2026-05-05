@@ -189,7 +189,7 @@ classdef SqrtSequentialEstimator < Estimator
                     end
                     
                     % Get measurement noise covariance sqrt
-                    measNoiseCovarSqrt_i = chol(sensorModel_i.measNoiseCovar)';
+                    measNoiseCovarSqrt_i = sensorModel_i.measNoiseCovarSqrt;
 
                     % Construct joint innovation + prefit state covariance sqrt
                     priorJointCovarSqrt_i = [measNoiseCovarSqrt_i,     H_i * priorAugStateCovarSqrt_i;

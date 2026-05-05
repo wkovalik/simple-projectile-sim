@@ -70,7 +70,7 @@ classdef RangeSensor < Sensor
             R = (dxSensor ^ 2 + dySensor ^ 2 + dzSensor ^ 2) ^ 0.5;
             
             % Compute noisy range measurement
-            epsR = self.measNoiseStdDev * randn();
+            epsR = self.measNoiseCovarSqrt * randn();
             
             R = R + epsR;
         end

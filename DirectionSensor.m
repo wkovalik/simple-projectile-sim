@@ -76,7 +76,7 @@ classdef DirectionSensor < Sensor
             dir = [az; el];
             
             % Compute noisy azimuth and elevation measurements
-            epsDir = self.measNoiseStdDev * randn(self.nMeas, 1);
+            epsDir = self.measNoiseCovarSqrt * randn(self.nMeas, 1);
 
             dir = dir + epsDir;
         end

@@ -8,7 +8,7 @@ clear; clc; close all;
 rng(0);
 
 propagateTruthTrajectory();
-runEstimator("sqrtsequential");
+runEstimator("sqrtsequential");  % "batch", "squential", or "sqrtsequential"
 plotResults();
 
 load("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
@@ -130,8 +130,8 @@ function output = runEstimator(option)
     % Set initial time, state, and state covariances
     projectileModel.time = 0;
     projectileModel.stateDef.state = [0; 0; 0; 30; 0; -330];
-    % projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
-    projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    % projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
     
     % Set projectile parameters and parameter covariances
     projectileModel.paramDefs.CD.value = 0.165;

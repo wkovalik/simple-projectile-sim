@@ -24,7 +24,7 @@ classdef Sensor < handle
         % considerParamIdxs = [];
 
         invMeasNoiseCovar = [];
-        measNoiseStdDev = [];
+        measNoiseCovarSqrt = [];
 
         nextSampleTime = 0;
     end
@@ -184,7 +184,7 @@ classdef Sensor < handle
             % Covariance must be nonsingular for these to be defined
             if det(measNoiseCovar) ~= 0
                 self.invMeasNoiseCovar = inv(measNoiseCovar);
-                self.measNoiseStdDev = chol(measNoiseCovar);   % Matrix square root
+                self.measNoiseCovarSqrt = chol(measNoiseCovar)';   % Lower-triangular sqrt (upper-triangular sqrt not correct for random sampling!)
             end
         end
 
