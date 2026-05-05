@@ -8,7 +8,7 @@ clear; clc; close all;
 rng(0);
 
 propagateTruthTrajectory();
-runEstimator("sequential");
+runEstimator("sqrtsequential");
 plotResults();
 
 load("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
@@ -186,6 +186,8 @@ function output = runEstimator(option)
             estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
         case "sequential"
             estimator = SequentialEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+        case "sqrtsequential"
+            estimator = SqrtSequentialEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
         otherwise
             error("Invalid estimator option.")
     end
@@ -219,11 +221,11 @@ function plotResults()
     plotTrueStateHistory = Utils.resampleStateHistory(trueTimeHistory, trueStateHistory, plotTimeHistory);
     
     % Resample nominal trajectories for plotting
-    nIterations = length(output.iterationData) - 1;
+    nIterations = length(output.perIterationData) - 1;
     
     plotNomStateHistories = cell(1, nIterations + 1);
     for i = 1:(nIterations + 1)
-        plotNomStateHistories{i} = Utils.resampleStateHistory(output.iterationData{i}.nomTimeHistory, output.iterationData{i}.nomStateHistory, plotTimeHistory);
+        plotNomStateHistories{i} = Utils.resampleStateHistory(output.perIterationData{i}.nomTimeHistory, output.perIterationData{i}.nomStateHistory, plotTimeHistory);
     end
     
     % Get measurement histories
@@ -232,29 +234,29 @@ function plotResults()
     accHistory = measHistory(2:end, measHistory(1, :) == 3);
     
     % Get measurement residual histories
-    priorMeasResiduals = output.iterationData{1}.measResidualHistory;
+    priorMeasResiduals = output.perIterationData{1}.measResidualHistory;
     priorRangeResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 1);
     priorDirResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 2);
     priorAccResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 3);
     
-    postMeasResiduals = output.iterationData{end}.measResidualHistory;
+    postMeasResiduals = output.perIterationData{end}.measResidualHistory;
     postRangeResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 1);
     postDirResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 2);
     postAccResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 3);
     
     % Get convergence histories
-    CDIterations = output.paramIterations(1, :);
-    CDStdDevIterations = output.paramCovarIterations(1, :) .^ 0.5;
+    CDIterations = output.iterations.params(1, :);
+    CDStdDevIterations = output.iterations.paramCovar(1, :) .^ 0.5;
     CDPlusIterations = CDIterations + CDStdDevIterations;
     CDMinusIterations = CDIterations - CDStdDevIterations;
 
-    vWindxIterations = output.paramIterations(2, :);
-    vWindxStdDevIterations = output.paramCovarIterations(5, :) .^ 0.5;
+    vWindxIterations = output.iterations.params(2, :);
+    vWindxStdDevIterations = output.iterations.paramCovar(5, :) .^ 0.5;
     vWindxPlusIterations = vWindxIterations + vWindxStdDevIterations;
     vWindxMinusIterations = vWindxIterations - vWindxStdDevIterations;
 
-    vWindyIterations = output.paramIterations(3, :);
-    vWindyStdDevIterations = output.paramCovarIterations(9, :) .^ 0.5;
+    vWindyIterations = output.iterations.params(3, :);
+    vWindyStdDevIterations = output.iterations.paramCovar(9, :) .^ 0.5;
     vWindyPlusIterations = vWindyIterations + vWindyStdDevIterations;
     vWindyMinusIterations = vWindyIterations - vWindyStdDevIterations;
     

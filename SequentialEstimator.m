@@ -51,26 +51,26 @@ classdef SequentialEstimator < Estimator
             % Initialize output data structure
             nMaxIterations = Settings.DEFAULT_MAX_ITERS;
 
-            output.iterationData = cell(1, nMaxIterations + 1);
+            output.perIterationData = cell(1, nMaxIterations + 1);
 
-            output.state_0Iterations = zeros(nStates, nMaxIterations + 1);
-            output.stateCovar_0Iterations = zeros(nStates ^ 2, nMaxIterations + 1);
+            output.iterations.state0 = zeros(nStates, nMaxIterations + 1);
+            output.iterations.stateCovar0 = zeros(nStates ^ 2, nMaxIterations + 1);
 
-            output.paramIterations = zeros(nEstimatedParams, nMaxIterations + 1);
-            output.paramCovarIterations = zeros(nEstimatedParams ^ 2, nMaxIterations + 1);
+            output.iterations.params = zeros(nEstimatedParams, nMaxIterations + 1);
+            output.iterations.paramCovar = zeros(nEstimatedParams ^ 2, nMaxIterations + 1);
 
-            output.augState_0Iterations = zeros(nAugStates, nMaxIterations + 1);
-            output.augStateCovar_0Iterations = zeros(nAugStates ^ 2, nMaxIterations + 1);
+            output.iterations.augState0 = zeros(nAugStates, nMaxIterations + 1);
+            output.iterations.augStateCovar0 = zeros(nAugStates ^ 2, nMaxIterations + 1);
             
             % Add prefit vectors and covariances to output
-            output.state_0Iterations(:, 1) = priorState_0;
-            output.stateCovar_0Iterations(:, 1) = priorStateCovar_0(:);
+            output.iterations.state0(:, 1) = priorState_0;
+            output.iterations.stateCovar0(:, 1) = priorStateCovar_0(:);
 
-            output.paramIterations(:, 1) = priorParams;
-            output.paramCovarIterations(:, 1) = priorParamCovar(:);
+            output.iterations.params(:, 1) = priorParams;
+            output.iterations.paramCovar(:, 1) = priorParamCovar(:);
 
-            output.augState_0Iterations(:, 1) = priorAugState_0;
-            output.augStateCovar_0Iterations(:, 1) = priorAugStateCovar_0(:);
+            output.iterations.augState0(:, 1) = priorAugState_0;
+            output.iterations.augStateCovar0(:, 1) = priorAugStateCovar_0(:);
 
             hasConverged = false;
 
@@ -83,8 +83,8 @@ classdef SequentialEstimator < Estimator
                 [nomTimeHistory, nomStateHistory, stateSTMHistory, paramSTMHistory] = ...
                     self.propagator.propagateWithSTM(finalMeasTime);
                 
-                output.iterationData{ii}.nomTimeHistory = nomTimeHistory;
-                output.iterationData{ii}.nomStateHistory = nomStateHistory;
+                output.perIterationData{ii}.nomTimeHistory = nomTimeHistory;
+                output.perIterationData{ii}.nomStateHistory = nomStateHistory;
                 
                 % Resample nominal trajectory at measurement times (should be exact)
                 nomStateHistory = Utils.resampleStateHistory(nomTimeHistory, nomStateHistory, measTimeHistory);
@@ -143,7 +143,7 @@ classdef SequentialEstimator < Estimator
                     % Compute step STM from previous measurement time to current measurement time
                     STM_ij = STM_i0 * invSTM_j0;
     
-                    % Compute prefit state deviation and covariance at current measurement time
+                    % Propagate prefit state deviation and covariance to current measurement time
                     priorAugStateDelta_i = STM_ij * postAugStateDelta_j;
                     priorAugStateCovar_i = STM_ij * postAugStateCovar_j * STM_ij';
                     
@@ -172,12 +172,13 @@ classdef SequentialEstimator < Estimator
                         H_i = stateH_i;
                     end
     
+                    % Get measurement noise covariance
                     measNoiseCovar_i = sensorModel_i.measNoiseCovar;
 
                     % Compute filter gain (i.e., Kalman gain) matrix
                     measResidualGain_i = priorAugStateCovar_i * H_i' / (H_i * priorAugStateCovar_i * H_i' + measNoiseCovar_i);
     
-                    % Compute postfit state deviation and covariance at current measurement time
+                    % Update to postfit state deviation and covariance using current measurement residual
                     postAugStateDelta_i = priorAugStateDelta_i + measResidualGain_i * (measResidual_i - H_i * priorAugStateDelta_i);
                     postAugStateCovar_i = (eye(nAugStates) - measResidualGain_i * H_i) * priorAugStateCovar_i * (eye(nAugStates) - measResidualGain_i * H_i)' + ...
                                           measResidualGain_i * measNoiseCovar_i * measResidualGain_i';
@@ -197,7 +198,7 @@ classdef SequentialEstimator < Estimator
                     end
                 end
     
-                output.iterationData{ii}.measResidualHistory = measResidualHistory;
+                output.perIterationData{ii}.measResidualHistory = measResidualHistory;
     
                 % ----------------------------------------------------------------------------------
                 
@@ -230,8 +231,8 @@ classdef SequentialEstimator < Estimator
                 fprintf("%.4f\t", postAugState_0(:))
                 fprintf("\n")
                 
-                output.augState_0Iterations(:, ii + 1) = postAugState_0;
-                output.augStateCovar_0Iterations(:, ii + 1) = postAugStateCovar_0(:);
+                output.iterations.augState0(:, ii + 1) = postAugState_0;
+                output.iterations.augStateCovar0(:, ii + 1) = postAugStateCovar_0(:);
                 
                 % Shift prefit state deviation at initial time
                 priorAugStateDelta_0 = priorAugStateDelta_0 - postAugStateDelta_0;
@@ -242,8 +243,8 @@ classdef SequentialEstimator < Estimator
                 postState_0 = postAugState_0(1:nStates);
                 postStateCovar_0 = postAugStateCovar_0(1:nStates, 1:nStates);
     
-                output.state_0Iterations(:, ii + 1) = postState_0;
-                output.stateCovar_0Iterations(:, ii + 1) = postStateCovar_0(:);
+                output.iterations.state0(:, ii + 1) = postState_0;
+                output.iterations.stateCovar0(:, ii + 1) = postStateCovar_0(:);
                 
                 % Update projectile model state (for nominal trajectory on next iteration)
                 self.projectileModel.time = 0;  % See TODO
@@ -254,8 +255,8 @@ classdef SequentialEstimator < Estimator
                     postParams = postAugState_0((nStates + 1):end);
                     postParamCovar = postAugStateCovar_0((nStates + 1):end, (nStates + 1):end);
     
-                    output.paramIterations(:, ii + 1) = postParams;
-                    output.paramCovarIterations(:, ii + 1) = postParamCovar(:);
+                    output.iterations.params(:, ii + 1) = postParams;
+                    output.iterations.paramCovar(:, ii + 1) = postParamCovar(:);
     
                     % Extract postfit projectile parameters
                     postProjectileParams = postParams(1:nEstimatedProjectileParams);
@@ -297,8 +298,8 @@ classdef SequentialEstimator < Estimator
             % Propagate postfit nominal trajectory
             [nomTimeHistory, nomStateHistory] = self.propagator.propagate(finalMeasTime);
                 
-            output.iterationData{nIterations + 1}.nomTimeHistory = nomTimeHistory;
-            output.iterationData{nIterations + 1}.nomStateHistory = nomStateHistory;
+            output.perIterationData{nIterations + 1}.nomTimeHistory = nomTimeHistory;
+            output.perIterationData{nIterations + 1}.nomStateHistory = nomStateHistory;
             
             % Resample postfit nominal trajectory at measurement times (should be exact)
             nomStateHistory = Utils.resampleStateHistory(nomTimeHistory, nomStateHistory, measTimeHistory);
@@ -328,20 +329,20 @@ classdef SequentialEstimator < Estimator
                 measResidualHistory(3:iMeasEnd, i) = measResidual_i;
             end
 
-            output.iterationData{nIterations + 1}.measResidualHistory = measResidualHistory;
+            output.perIterationData{nIterations + 1}.measResidualHistory = measResidualHistory;
             
             % Remove all unused entries in output data if converged early
             if hasConverged
-                output.iterationData((nIterations + 2):end) = [];
+                output.perIterationData((nIterations + 2):end) = [];
 
-                output.state_0Iterations(:, (nIterations + 2):end) = [];
-                output.stateCovar_0Iterations(:, (nIterations + 2):end) = [];
+                output.iterations.state0(:, (nIterations + 2):end) = [];
+                output.iterations.stateCovar0(:, (nIterations + 2):end) = [];
 
-                output.paramIterations(:, (nIterations + 2):end) = [];
-                output.paramCovarIterations(:, (nIterations + 2):end) = [];
+                output.iterations.params(:, (nIterations + 2):end) = [];
+                output.iterations.paramCovar(:, (nIterations + 2):end) = [];
 
-                output.augState_0Iterations(:, (nIterations + 2):end) = [];
-                output.augStateCovar_0Iterations(:, (nIterations + 2):end) = [];
+                output.iterations.augState0(:, (nIterations + 2):end) = [];
+                output.iterations.augStateCovar0(:, (nIterations + 2):end) = [];
             end
         end
     end

@@ -1,10 +1,10 @@
-classdef BatchEstimator < Estimator
+classdef SqrtSequentialEstimator < Estimator
     % TODO: Currently assumes init projectile time = estimate time epoch. Need to propagate if not
 
     methods
         % Constructor ==============================================================================
 
-        function self = BatchEstimator(varargin)
+        function self = SqrtSequentialEstimator(varargin)
             self = self@Estimator(varargin{:});
         end
 
@@ -41,6 +41,7 @@ classdef BatchEstimator < Estimator
 
             priorAugState_0 = [priorState_0; priorParams];
             priorAugStateCovar_0 = blkdiag(priorStateCovar_0, priorParamCovar);
+            priorAugStateCovarSqrt_0 = chol(priorAugStateCovar_0)';
             priorAugStateDelta_0 = zeros(nAugStates, 1);
 
             fprintf("Iteration\tEstimated State\n")
@@ -95,10 +96,24 @@ classdef BatchEstimator < Estimator
                 
                 % ----------------------------------------------------------------------------------
                 
-                % Initialize postfit normal vector and information matrix (i.e., inverse covariance) for initial time
-                postAugNormal_0 = priorAugStateCovar_0 \ priorAugStateDelta_0;
-                postAugStateInvCovar_0 = inv(priorAugStateCovar_0);
+                % Note: t_i = current measurement time
+                %       t_j = t_(i-1) = previous measurement time
                 
+                % Initialize postfit state deviation and covariance sqrt at previous measurement time (i.e., initial time here)
+                postAugStateDelta_j = priorAugStateDelta_0;
+                postAugStateCovarSqrt_j = priorAugStateCovarSqrt_0;
+                
+                % Initialize STMs at previous measurement time (i.e., initial time here)
+                invStateSTM_j0 = eye(nStates);
+                if self.includeParamSTM
+                    paramSTM_j0 = zeros(nStates, nEstimatedParams);
+    
+                    invSTM_j0 = [invStateSTM_j0,                   -invStateSTM_j0 * paramSTM_j0;
+                                 zeros(nEstimatedParams, nStates),  eye(nEstimatedParams)];
+                else
+                    invSTM_j0 = invStateSTM_j0;
+                end
+    
                 % Initialize measurement residual history
                 measResidualHistory = zeros(size(measHistory, 1), nSamples);
                 measResidualHistory(1, :) = measHistory(1, :);
@@ -111,60 +126,101 @@ classdef BatchEstimator < Estimator
                     
                     % Get nominal state and STMs at current measurement time
                     nomState_i = nomStateHistory(:, i);
-
+    
                     stateSTM_i0 = stateSTMHistory(:, i);
                     stateSTM_i0 = reshape(stateSTM_i0, [nStates, nStates]);
                     if self.includeParamSTM
                         paramSTM_i0 = paramSTMHistory(:, i);
                         paramSTM_i0 = reshape(paramSTM_i0, [nStates, nEstimatedParams]);
                     end
+    
+                    if self.includeParamSTM
+                        STM_i0 = [stateSTM_i0,                      paramSTM_i0;
+                                  zeros(nEstimatedParams, nStates), eye(nEstimatedParams)];
+                    else
+                        STM_i0 = stateSTM_i0;
+                    end
                     
+                    % Compute step STM from previous measurement time to current measurement time
+                    STM_ij = STM_i0 * invSTM_j0;
+    
+                    % Propagate prefit state deviation and covariance sqrt to current measurement time
+                    priorAugStateDelta_i = STM_ij * postAugStateDelta_j;
+                    priorAugStateCovarSqrt_i = qr((STM_ij * postAugStateCovarSqrt_j)')';
+                    
+                    % Above: Time update
+                    % ------------------------------------------------------------------------------
+                    % Below: Measurement update
+
                     % Get observed measurement and computed measurement at current measurement time
                     nMeas = sensorModel_i.nMeas;
                     iMeasEnd = 3 + (nMeas - 1);
-
+    
                     observedMeas_i = measHistory(3:iMeasEnd, i);
                     computedMeas_i = sensorModel_i.computeMeasurement(nomState_i);
     
                     % Compute measurement residual
                     measResidual_i = observedMeas_i - computedMeas_i;
                     measResidualHistory(3:iMeasEnd, i) = measResidual_i;
-                    
+    
                     % Compute measurement sensitivity matrices (i.e., Jacobians) at current measurement time
                     stateH_i = sensorModel_i.computeStateJacobian(nomState_i);
                     if self.includeParamSTM
                         paramH_i = sensorModel_i.computeParamJacobian(nomState_i);
-                    end
-                    
-                    % Map measurement sensitivity matrices to initial time
-                    mappedStateH_i0 = stateH_i * stateSTM_i0;
-                    if self.includeParamSTM
-                        mappedParamH_i0 = stateH_i * paramSTM_i0 + paramH_i;
-
-                        mappedH_i0 = [mappedStateH_i0, mappedParamH_i0];
-                    else
-                        mappedH_i0 = mappedStateH_i0;
-                    end
-                    
-                    % Get measurement noise covariance inverse
-                    invMeasNoiseCovar_i = sensorModel_i.invMeasNoiseCovar;
-                    
-                    % Accumulate postfit normal vector and information matrix
-                    addAugNormal_0 = mappedH_i0' * invMeasNoiseCovar_i * measResidual_i;
-                    addAugStateInvCovar_0 = mappedH_i0' * invMeasNoiseCovar_i * mappedH_i0;
     
-                    postAugNormal_0 = postAugNormal_0 + addAugNormal_0;
-                    postAugStateInvCovar_0 = postAugStateInvCovar_0 + addAugStateInvCovar_0;
-                end
+                        H_i = [stateH_i, paramH_i];
+                    else
+                        H_i = stateH_i;
+                    end
+                    
+                    % Get measurement noise covariance sqrt
+                    measNoiseCovarSqrt_i = chol(sensorModel_i.measNoiseCovar)';
 
+                    % Construct joint innovation + prefit state covariance sqrt
+                    priorJointCovarSqrt_i = [measNoiseCovarSqrt_i,     H_i * priorAugStateCovarSqrt_i;
+                                             zeros(nAugStates, nMeas), priorAugStateCovarSqrt_i];
+                    
+                    % Compute joint innovation + postfit state covariance sqrt
+                    postJointCovarSqrt_i = qr(priorJointCovarSqrt_i')';
+
+                    % Extract innovation covariance sqrt
+                    innovCovarSqrt_i = postJointCovarSqrt_i(1:nMeas, 1:nMeas);
+                    mappedInnovCovarSqrt_i = postJointCovarSqrt_i((nMeas + 1):end, 1:nMeas);
+                    
+                    % Compute filter gain (i.e., Kalman gain) matrix
+                    measResidualGain_i = mappedInnovCovarSqrt_i / innovCovarSqrt_i;
+                    
+                    % Update to postfit state deviation and covariance sqrt using current measurement residual
+                    postAugStateDelta_i = priorAugStateDelta_i + measResidualGain_i * (measResidual_i - H_i * priorAugStateDelta_i);
+                    postAugStateCovarSqrt_i = postJointCovarSqrt_i((nMeas + 1):end, (nMeas + 1):end);
+
+                    % Store results (current measurement time now becomes previous measurement time)
+                    postAugStateDelta_j = postAugStateDelta_i;
+                    postAugStateCovarSqrt_j = postAugStateCovarSqrt_i;
+                    
+                    invStateSTM_j0 = inv(stateSTM_i0);
+                    if self.includeParamSTM
+                        paramSTM_j0 = paramSTM_i0;
+    
+                        invSTM_j0 = [invStateSTM_j0,                   -invStateSTM_j0 * paramSTM_j0;
+                                     zeros(nEstimatedParams, nStates),  eye(nEstimatedParams)];
+                    else
+                        invSTM_j0 = invStateSTM_j0;
+                    end
+                end
+    
                 output.perIterationData{ii}.measResidualHistory = measResidualHistory;
-                
+    
                 % ----------------------------------------------------------------------------------
                 
                 % Compute postfit state deviation and covariance at initial time
-                postAugStateDelta_0 = postAugStateInvCovar_0 \ postAugNormal_0;
-                postAugStateCovar_0 = inv(postAugStateInvCovar_0);
-
+                % (i.e., map postfit state deviation and covariance sqrt at final measurement time to initial time)
+                invSTM_i0 = invSTM_j0;
+    
+                postAugStateDelta_0 = invSTM_i0 * postAugStateDelta_i;
+                postAugStateCovarSqrt_0 = qr((invSTM_i0 * postAugStateCovarSqrt_i)')';
+                postAugStateCovar_0 = postAugStateCovarSqrt_0 * postAugStateCovarSqrt_0';
+    
                 if ii == 1
                     % Determine if state has converged
                     if max(abs(postAugStateDelta_0 ./ priorAugState_0)) < Settings.DEFAULT_CONVERGENCE_TOL
@@ -182,7 +238,7 @@ classdef BatchEstimator < Estimator
                     % Update postfit state
                     postAugState_0 = postAugState_0 + postAugStateDelta_0;
                 end
-
+    
                 fprintf("%i\t\t\t", ii)
                 fprintf("%.4f\t", postAugState_0(:))
                 fprintf("\n")
@@ -192,20 +248,20 @@ classdef BatchEstimator < Estimator
                 
                 % Shift prefit state deviation at initial time
                 priorAugStateDelta_0 = priorAugStateDelta_0 - postAugStateDelta_0;
-
+    
                 % ----------------------------------------------------------------------------------
                 
                 % Extract postfit projectile state at initial time
                 postState_0 = postAugState_0(1:nStates);
                 postStateCovar_0 = postAugStateCovar_0(1:nStates, 1:nStates);
-
+    
                 output.iterations.state0(:, ii + 1) = postState_0;
                 output.iterations.stateCovar0(:, ii + 1) = postStateCovar_0(:);
                 
                 % Update projectile model state (for nominal trajectory on next iteration)
                 self.projectileModel.time = 0;  % See TODO
                 self.projectileModel.state = postState_0;
-
+    
                 if self.includeParamSTM
                     % Extract postfit parameters
                     postParams = postAugState_0((nStates + 1):end);
@@ -232,18 +288,19 @@ classdef BatchEstimator < Estimator
                     self.planetModel.estimatedParams = postPlanetParams;
                     self.planetModel.estimatedParamCovar = postPlanetParamCovar;
                 end
-
+    
                 % ----------------------------------------------------------------------------------
-
+    
                 if hasConverged
                     fprintf("Converged!\n")  % Break out if converged
                     break
-
+    
                 elseif ii == nMaxIterations
                     warning("Failed to converge within maximum number of iterations.")
                 end
+
             end
-            
+
             % --------------------------------------------------------------------------------------
             % End estimation loop
             % --------------------------------------------------------------------------------------
