@@ -36,88 +36,132 @@ classdef ProjectileDynamics < handle
         
         % Force model methods ======================================================================
 
-        function F = computeGravityForce(self)
+        function F = computeGravityForce(self, state)
+            theta = state(5);
+
+            sinTheta = sin(theta);
+            cosTheta = cos(theta);
+
             m = self.projectile.params(self.projectile.mIdx);
 
             g = self.planet.computeGravity();
 
             F = zeros(3, 1);
-            F(3) = m * g;
+            F(1) = -m * g * sinTheta;
+            F(3) =  m * g * cosTheta;
         end
 
 
-        function F = computeAeroForce(self, state)
+        function [F, M] = computeAeroForce(self, state)
             z = state(3);
-            vx = state(4);
-            vy = state(5);
-            vz = state(6);
+            theta = state(5);
+            psi = state(6);
+            u = state(7);
+            v = state(8);
+            w = state(9);
+            p = state(10);
+            q = state(11);
+            r = state(12);
 
+            cosTheta = cos(theta);
+            sinTheta = sin(theta);
+            cosPsi = cos(psi);
+            sinPsi = sin(psi);
+
+            d = self.projectile.params(self.projectile.dIdx);
             S = self.projectile.params(self.projectile.SIdx);
+            deltaFins = self.projectile.params(self.projectile.deltaFinsIdx);
             
             h = -z;
             [rho, a] = self.planet.computeAtmosphere(h);
             [vWindx, vWindy] = self.planet.computeWind(h);
+
+            uWind =  cosTheta * cosPsi * vWindx + cosTheta * sinPsi * vWindy;
+            vWind = -sinPsi            * vWindx + cosPsi            * vWindy;
+            wWind =  sinTheta * cosPsi * vWindx + sinTheta * sinPsi * vWindy;
+
+            uAtm = u - uWind;
+            vAtm = v - vWind;
+            wAtm = w - wWind;
             
-            vAtmx = vx - vWindx;
-            vAtmy = vy - vWindy;
-            vAtmz = vz;
-            VAtm = (vAtmx ^ 2 + vAtmy ^ 2 + vAtmz ^ 2) ^ 0.5;
+            VAtm = (uAtm ^ 2 + vAtm ^ 2 + wAtm ^ 2) ^ 0.5;
+            
+            sinAlphaCosBeta = wAtm / VAtm;
+            sinBeta         = vAtm / VAtm;
+            sinAlphaTotal   = (vAtm ^ 2 + wAtm ^ 2) ^ 0.5 / VAtm;
 
             mach = VAtm / a;
+            qAtm = 0.5 * rho * VAtm ^ 2;
 
-            CD = self.projectile.computeAeroCoeffs(mach);
+            pNormalized = p * d / VAtm;
+            qNormalized = q * d / VAtm;
+            rNormalized = r * d / VAtm;
+
+            [CX0, CX2, CY0, CZ0, CNalpha0, CNalpha2, CNpalpha0, CNpalpha2, ...
+             Cl0, Clp, Cldelta, Cm0, Cn0, CMalpha0, CMalpha2, CMpalpha0, CMpalpha2, CMq] = self.projectile.computeAeroCoeffs(mach);
+
+            CX       = CX0       + CX2       * sinAlphaTotal ^ 2;
+            CNalpha  = CNalpha0  + CNalpha2  * sinAlphaTotal ^ 2;
+            CNpalpha = CNpalpha0 + CNpalpha2 * sinAlphaTotal ^ 2;
+            CMalpha  = CMalpha0  + CMalpha2  * sinAlphaTotal ^ 2;
+            CMpalpha = CMpalpha0 + CMpalpha2 * sinAlphaTotal ^ 2;
+
+            CY = CY0 - CNalpha * sinBeta          + pNormalized * CNpalpha * sinAlphaCosBeta;
+            CZ = CZ0 - CNalpha * sinAlphaCosBeta  - pNormalized * CNpalpha * sinBeta;
             
-            k = -(rho * S * CD / 2);
+            Cl = Cl0 + pNormalized * Clp + Cldelta * deltaFins;
+            Cm = Cm0 + CMalpha * sinAlphaCosBeta  + pNormalized * CMpalpha * sinBeta         + qNormalized * CMq;
+            Cn = Cn0 - CMalpha * sinBeta          + pNormalized * CMpalpha * sinAlphaCosBeta + rNormalized * CMq;
 
             F = zeros(3, 1);
-            F(1) = k * VAtm * vAtmx;
-            F(2) = k * VAtm * vAtmy;
-            F(3) = k * VAtm * vAtmz;
+            F(1) = qAtm * S * CX;
+            F(2) = qAtm * S * CY;
+            F(3) = qAtm * S * CZ;
+
+            M = zeros(3, 1);
+            M(1) = qAtm * S * d * Cl;
+            M(2) = qAtm * S * d * Cm;
+            M(3) = qAtm * S * d * Cn;
         end
 
 
-        % function dF_dv = computeGravityForcePartials(self)
+        % function dF_dv = computeAeroForcePartials(self, state)
+        %     z = state(3);
+        %     vx = state(4);
+        %     vy = state(5);
+        %     vz = state(6);
+        % 
+        %     S = self.projectile.params(self.projectile.SIdx);
+        % 
+        %     h = -z;
+        %     [rho, a] = self.planet.computeAtmosphere(h);
+        %     [vWindx, vWindy] = self.planet.computeWind(h);
+        % 
+        %     vAtmx = vx - vWindx;
+        %     vAtmy = vy - vWindy;
+        %     vAtmz = vz;
+        %     VAtm = (vAtmx ^ 2 + vAtmy ^ 2 + vAtmz ^ 2) ^ 0.5;
+        % 
+        %     mach = VAtm / a;
+        % 
+        %     CD = self.projectile.computeAeroCoeffs(mach);
+        % 
+        %     k = -(rho * S * CD / 2);
+        % 
         %     dF_dv = zeros(3, 3);
+        % 
+        %     dF_dv(1, 1) = k * (vAtmx ^ 2 / VAtm + VAtm);
+        %     dF_dv(2, 1) = k * (vAtmx * vAtmy / VAtm);
+        %     dF_dv(3, 1) = k * (vAtmx * vAtmz / VAtm);
+        % 
+        %     dF_dv(1, 2) = dF_dv(2, 1);
+        %     dF_dv(2, 2) = k * (vAtmy ^ 2 / VAtm + VAtm);
+        %     dF_dv(3, 2) = k * (vAtmy * vAtmz / VAtm);
+        % 
+        %     dF_dv(1, 3) = dF_dv(3, 1);
+        %     dF_dv(2, 3) = dF_dv(3, 2);
+        %     dF_dv(3, 3) = k * (vAtmz ^ 2 / VAtm + VAtm);
         % end
-
-
-        function dF_dv = computeAeroForcePartials(self, state)
-            z = state(3);
-            vx = state(4);
-            vy = state(5);
-            vz = state(6);
-
-            S = self.projectile.params(self.projectile.SIdx);
-            
-            h = -z;
-            [rho, a] = self.planet.computeAtmosphere(h);
-            [vWindx, vWindy] = self.planet.computeWind(h);
-            
-            vAtmx = vx - vWindx;
-            vAtmy = vy - vWindy;
-            vAtmz = vz;
-            VAtm = (vAtmx ^ 2 + vAtmy ^ 2 + vAtmz ^ 2) ^ 0.5;
-
-            mach = VAtm / a;
-
-            CD = self.projectile.computeAeroCoeffs(mach);
-            
-            k = -(rho * S * CD / 2);
-
-            dF_dv = zeros(3, 3);
-
-            dF_dv(1, 1) = k * (vAtmx ^ 2 / VAtm + VAtm);
-            dF_dv(2, 1) = k * (vAtmx * vAtmy / VAtm);
-            dF_dv(3, 1) = k * (vAtmx * vAtmz / VAtm);
-
-            dF_dv(1, 2) = dF_dv(2, 1);
-            dF_dv(2, 2) = k * (vAtmy ^ 2 / VAtm + VAtm);
-            dF_dv(3, 2) = k * (vAtmy * vAtmz / VAtm);
-
-            dF_dv(1, 3) = dF_dv(3, 1);
-            dF_dv(2, 3) = dF_dv(3, 2);
-            dF_dv(3, 3) = k * (vAtmz ^ 2 / VAtm + VAtm);
-        end
 
         
         % Derivative methods =======================================================================
@@ -125,25 +169,50 @@ classdef ProjectileDynamics < handle
         function stateDeriv = computeStateDeriv(self, state)
             nStates = self.projectile.nStates;
 
-            vx = state(4);
-            vy = state(5);
-            vz = state(6);
+            theta = state(5);
+            psi = state(6);
+            u = state(7);
+            v = state(8);
+            w = state(9);
+            p = state(10);
+            q = state(11);
+            r = state(12);
+
+            cosTheta = cos(theta);
+            sinTheta = sin(theta);
+            tanTheta = sinTheta / cosTheta;
+            secTheta = 1 / cosTheta;
+            cosPsi = cos(psi);
+            sinPsi = sin(psi);
             
             % TODO: Compute acceleration function?
             m = self.projectile.params(self.projectile.mIdx);
+            Ix = self.projectile.params(self.projectile.IxxIdx);
+            Iz = self.projectile.params(self.projectile.IzzIdx);
+            dIxIz = Ix / Iz;
 
-            FGrav = self.computeGravityForce();
-            FAero = self.computeAeroForce(state);
+            FGrav = self.computeGravityForce(state);
+            [FAero, M] = self.computeAeroForce(state);
 
             F = FGrav + FAero;
 
             stateDeriv = zeros(nStates, 1);
-            stateDeriv(1) = vx;
-            stateDeriv(2) = vy;
-            stateDeriv(3) = vz;
-            stateDeriv(4) = F(1) / m;
-            stateDeriv(5) = F(2) / m;
-            stateDeriv(6) = F(3) / m;
+
+            stateDeriv(1) =  cosTheta * cosPsi * u - sinPsi * v + sinTheta * cosPsi * w;
+            stateDeriv(2) =  cosTheta * sinPsi * u + cosPsi * v + sinTheta * sinPsi * w;
+            stateDeriv(3) = -sinTheta          * u              + cosTheta          * w;
+
+            stateDeriv(4) = p    + tanTheta * r;
+            stateDeriv(5) =   q;
+            stateDeriv(6) =        secTheta * r;
+
+            stateDeriv(7) = F(1) / m         +            r * v -            q * w;
+            stateDeriv(8) = F(2) / m - r * u                    - tanTheta * r * w;
+            stateDeriv(9) = F(3) / m + q * u + tanTheta * r * v;
+
+            stateDeriv(10) = M(1) / Ix;
+            stateDeriv(11) = M(2) / Iz - dIxIz * r * p                    - tanTheta * r * r;
+            stateDeriv(12) = M(3) / Iz + dIxIz * q * p + tanTheta * r * q;
         end
 
 
@@ -196,32 +265,34 @@ classdef ProjectileDynamics < handle
         % Jacobian methods =========================================================================
 
         function A = computeAnalyticStateJacobian(self, state)
-            nStates = self.projectile.nStates;
+            error("Analytic state Jacobian not yet implemented.")
 
-            m = self.projectile.params(self.projectile.mIdx);
-
-            % dFGrav_dv = self.computeGravityForcePartials();
-            % dFAero_dv = self.computeAeroForcePartials(state);
-            % dF_ddv = dFGrav_dv + dFAero_dv;
-
-            dF_dv = self.computeAeroForcePartials(state);
-
-            A = zeros(nStates);
-            
-            A(1, 4) = 1;
-            A(4, 4) = dF_dv(1, 1) / m;
-            A(5, 4) = dF_dv(2, 1) / m;
-            A(6, 4) = dF_dv(3, 1) / m;
-
-            A(2, 5) = 1;
-            A(4, 5) = dF_dv(1, 2) / m;
-            A(5, 5) = dF_dv(2, 2) / m;
-            A(6, 5) = dF_dv(3, 2) / m;
-
-            A(3, 6) = 1;
-            A(4, 6) = dF_dv(1, 3) / m;
-            A(5, 6) = dF_dv(2, 3) / m;
-            A(6, 6) = dF_dv(3, 3) / m;
+            % nStates = self.projectile.nStates;
+            % 
+            % m = self.projectile.params(self.projectile.mIdx);
+            % 
+            % % dFGrav_dv = self.computeGravityForcePartials();
+            % % dFAero_dv = self.computeAeroForcePartials(state);
+            % % dF_ddv = dFGrav_dv + dFAero_dv;
+            % 
+            % dF_dv = self.computeAeroForcePartials(state);
+            % 
+            % A = zeros(nStates);
+            % 
+            % A(1, 4) = 1;
+            % A(4, 4) = dF_dv(1, 1) / m;
+            % A(5, 4) = dF_dv(2, 1) / m;
+            % A(6, 4) = dF_dv(3, 1) / m;
+            % 
+            % A(2, 5) = 1;
+            % A(4, 5) = dF_dv(1, 2) / m;
+            % A(5, 5) = dF_dv(2, 2) / m;
+            % A(6, 5) = dF_dv(3, 2) / m;
+            % 
+            % A(3, 6) = 1;
+            % A(4, 6) = dF_dv(1, 3) / m;
+            % A(5, 6) = dF_dv(2, 3) / m;
+            % A(6, 6) = dF_dv(3, 3) / m;
         end
 
 
@@ -230,7 +301,7 @@ classdef ProjectileDynamics < handle
 
             A = zeros(nStates);
 
-            pertFactor = 1E-04;
+            pertFactor = Settings.DEFAULT_JACOBIAN_PERT_FACTOR;
             for i = 1:nStates
                 delta = pertFactor * (1 + abs(state(i)));
 
@@ -257,7 +328,7 @@ classdef ProjectileDynamics < handle
 
             A = zeros(nStates, nEstimatedParams);
             
-            pertFactor = 1E-04;
+            pertFactor = Settings.DEFAULT_JACOBIAN_PERT_FACTOR;
             for i = 1:nEstimatedProjectileParams
                 paramIdx = self.projectile.estimatedParamIdxs(i);
                 param = self.projectile.params(paramIdx);
