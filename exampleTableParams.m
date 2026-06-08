@@ -87,10 +87,21 @@ function propagateTruthTrajectory()
 
     % Create accelerometer sensor
     accelerometerSensor = AccelerometerSensor(projectile, projectileDynamics);
-
+    
+    % Set sensor measurement properties
     accelerometerSensor.ID = 3;
     accelerometerSensor.samplePeriod = 0.05;
     accelerometerSensor.measNoiseCovar = 0.01 ^ 2;
+
+    % ----------------------------------------------------------------------------------------------
+    
+    % Create roll gyro sensor
+    rollGyroSensor = RollGyroSensor();
+
+    % Set sensor measurement properties
+    rollGyroSensor.ID = 4;
+    rollGyroSensor.samplePeriod = 0.05;
+    rollGyroSensor.measNoiseCovar = 0.0175 ^ 2;
 
     % ----------------------------------------------------------------------------------------------
     
@@ -99,7 +110,7 @@ function propagateTruthTrajectory()
     
     % Propagate truth trajectory (and take measurements along trajectory)
     propTime = 30;
-    [trueTimeHistory, trueStateHistory, measHistory] = propagator.propagateWithSensors(propTime, { rangeSensor, directionSensor, accelerometerSensor });
+    [trueTimeHistory, trueStateHistory, measHistory] = propagator.propagateWithSensors(propTime, { rangeSensor, directionSensor, accelerometerSensor, rollGyroSensor });
     
     save("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
     save("./log/sensorLog.mat", "measHistory");
@@ -190,20 +201,30 @@ function output = runEstimator(option)
 
     % Create accelerometer model
     accelerometerSensorModel = AccelerometerSensor(projectileModel, projectileModelDynamics);
-
+    
+    % Set sensor measurement properties
     accelerometerSensorModel.ID = 3;
     accelerometerSensorModel.measNoiseCovar = 0.01 ^ 2;
+
+    % ----------------------------------------------------------------------------------------------
+    
+    % Create roll gyro sensor
+    rollGyroSensorModel = RollGyroSensor();
+    
+    % Set sensor measurement properties
+    rollGyroSensorModel.ID = 4;
+    rollGyroSensorModel.measNoiseCovar = 0.0175 ^ 2;
     
     % ----------------------------------------------------------------------------------------------
     
     % Create estimator (default integrator)
     switch option
         case "batch"
-            estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+            estimator = BatchEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel, rollGyroSensorModel });
         case "sequential"
-            estimator = SequentialEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+            estimator = SequentialEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel, rollGyroSensorModel });
         case "sqrtsequential"
-            estimator = SqrtSequentialEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel });
+            estimator = SqrtSequentialEstimator(projectileModelDynamics, { rangeSensorModel, directionSensorModel, accelerometerSensorModel, rollGyroSensorModel });
         otherwise
             error("Invalid estimator option.")
     end
@@ -248,17 +269,20 @@ function plotResults()
     rangeHistory = measHistory(2:end, measHistory(1, :) == 1);
     dirHistory = measHistory(2:end, measHistory(1, :) == 2);
     accHistory = measHistory(2:end, measHistory(1, :) == 3);
+    gyroHistory = measHistory(2:end, measHistory(1, :) == 4);
     
     % Get measurement residual histories
     priorMeasResiduals = output.perIterationData{1}.measResidualHistory;
     priorRangeResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 1);
     priorDirResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 2);
     priorAccResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 3);
-    
+    priorGyroResiduals = priorMeasResiduals(2:end, priorMeasResiduals(1, :) == 4);
+
     postMeasResiduals = output.perIterationData{end}.measResidualHistory;
     postRangeResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 1);
     postDirResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 2);
     postAccResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 3);
+    postGyroResiduals = postMeasResiduals(2:end, postMeasResiduals(1, :) == 4);
 
     % Get convergence histories
     HIterations = output.iterations.params(1, :);
@@ -304,25 +328,30 @@ function plotResults()
     
     figure(2)
     
-    subplot(2, 2, 1)
+    subplot(3, 2, 1)
     plot(rangeHistory(1, :), rangeHistory(2, :), 'kx')
     xlabel("t (s)")
     ylabel("R (m)")
     
-    subplot(2, 2, 2)
+    subplot(3, 2, 2)
     plot(dirHistory(1, :), rad2deg(dirHistory(2, :)), 'kx')
     xlabel("t (s)")
     ylabel("\theta (deg)")
     
-    subplot(2, 2, 3)
+    subplot(3, 2, 3)
     plot(dirHistory(1, :), rad2deg(dirHistory(3, :)), 'kx')
     xlabel("t (s)")
     ylabel("\phi (deg)")
 
-    subplot(2, 2, 4)
+    subplot(3, 2, 4)
     plot(accHistory(1, :), accHistory(2, :), 'kx')
     xlabel("t (s)")
     ylabel("a_V (m/s^2)")
+
+    subplot(3, 2, 5)
+    plot(gyroHistory(1, :), gyroHistory(2, :) / (2 * pi), 'kx')
+    xlabel("t (s)")
+    ylabel("p (rev/s)")
     
     sgtitle("Sensor Measurements")
     
@@ -330,7 +359,7 @@ function plotResults()
     
     figure(3)
 
-    subplot(2, 2, 1)
+    subplot(3, 2, 1)
     plot(priorRangeResiduals(1, :), priorRangeResiduals(2, :), 'rx')
     hold on
     plot(postRangeResiduals(1, :), postRangeResiduals(2, :), 'kx')
@@ -338,7 +367,7 @@ function plotResults()
     xlabel("t (s)")
     ylabel("R (m)")
 
-    subplot(2, 2, 2)
+    subplot(3, 2, 2)
     plot(priorDirResiduals(1, :), rad2deg(priorDirResiduals(2, :)), 'rx')
     hold on
     plot(postDirResiduals(1, :), rad2deg(postDirResiduals(2, :)), 'kx')
@@ -346,7 +375,7 @@ function plotResults()
     xlabel("t (s)")
     ylabel("\theta (deg)")
 
-    subplot(2, 2, 3)
+    subplot(3, 2, 3)
     plot(priorDirResiduals(1, :), rad2deg(priorDirResiduals(3, :)), 'rx')
     hold on
     plot(postDirResiduals(1, :), rad2deg(postDirResiduals(3, :)), 'kx')
@@ -354,13 +383,21 @@ function plotResults()
     xlabel("t (s)")
     ylabel("\phi (deg)")
 
-    subplot(2, 2, 4)
+    subplot(3, 2, 4)
     plot(priorAccResiduals(1, :), priorAccResiduals(2, :), 'rx')
     hold on
     plot(postAccResiduals(1, :), postAccResiduals(2, :), 'kx')
     hold off
     xlabel("t (s)")
     ylabel("a_V (m/s^2)")
+
+    subplot(3, 2, 5)
+    plot(priorGyroResiduals(1, :), priorGyroResiduals(2, :) / (2 * pi), 'rx')
+    hold on
+    plot(postGyroResiduals(1, :), postGyroResiduals(2, :) / (2 * pi), 'kx')
+    hold off
+    xlabel("t (s)")
+    ylabel("p (rev/s)")
 
     legend(["Prefit", "Postfit"], "location", "best")
 

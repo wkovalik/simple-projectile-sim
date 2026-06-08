@@ -55,10 +55,8 @@ function propagateTruthTrajectory()
 
     % Set sensor measurement properties
     rollGyroSensor.ID = 1;
-    rollGyroSensor.samplePeriod = 0.01;
+    rollGyroSensor.samplePeriod = 0.05;
     rollGyroSensor.measNoiseCovar = 0.0175 ^ 2;
-
-    rollGyroSensor.update();
     
     % ----------------------------------------------------------------------------------------------
     
