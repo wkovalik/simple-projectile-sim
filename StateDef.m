@@ -6,7 +6,7 @@ classdef StateDef
     end
 
     properties (Constant)
-        nStates = 6;
+        nStates = 7;
     end
 
 

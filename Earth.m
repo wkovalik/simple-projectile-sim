@@ -7,7 +7,7 @@ classdef Earth < Planet
         DEFAULT_H = 8500;       % TODO: Scaling (rescale to km?)
         % DEFAULT_R = 287.05287;
         % DEFAULT_T = 288.15;
-        DEFAULT_A = 344.1;  % TODO: Compute using R and T as params instead
+        DEFAULT_A = 340.294;  % TODO: Compute using R and T as params instead
 
         DEFAULT_VWINDX = 0;
         DEFAULT_VWINDX_TABLE_X = [0; 10000];

@@ -23,13 +23,33 @@ classdef Projectile < handle
         nEstimatedParams = 0;
         estimatedParamIdxs = [];
 
-        mIdx = 0;
+        dIdx = 0;
         SIdx = 0;
+        nFinsIdx = 0;
+        deltaFinsIdx = 0;
+
+        mIdx = 0;
+        IxxIdx = 0;
 
         CDIdx = 0;
         CDTable_Mach0Idx = 0;
         CDTable_CD0Idx = 0;
         CDTable_Len = 0;
+
+        Cl0Idx = 0;
+        Cl0Table_Mach0Idx = 0;
+        Cl0Table_Cl0Idx = 0;
+        Cl0Table_Len = 0;
+
+        ClpIdx = 0;
+        ClpTable_Mach0Idx = 0;
+        ClpTable_ClpIdx = 0;
+        ClpTable_Len = 0;
+
+        CldeltaIdx = 0;
+        CldeltaTable_Mach0Idx = 0;
+        CldeltaTable_CldeltaIdx = 0;
+        CldeltaTable_Len = 0;
 
         isAeroModelInit = false;
 
@@ -37,7 +57,7 @@ classdef Projectile < handle
     end
 
     properties (Constant)
-        nStates = 6;
+        nStates = 7;
 
         xIdx = 1;
         yIdx = 2;
@@ -45,14 +65,31 @@ classdef Projectile < handle
         vxIdx = 4;
         vyIdx = 5;
         vzIdx = 6;
+        pIdx = 7;
 
-        DEFAULT_M = 0.145;
-        % DEFAULT_D = 0.075;
-        DEFAULT_S = 0.004417865;  % TODO: Compute using d as param instead
+        DEFAULT_D = 0.02999232;
+        DEFAULT_S = (pi / 4) * 0.02999232 ^ 2;
+        DEFAULT_NFINS = 4;
+        DEFAULT_DELTAFINS = 0;
 
-        DEFAULT_CD = 0.15;
-        DEFAULT_CD_TABLE_X = [0; 1];
-        DEFAULT_CD_TABLE_Y = [0.15; 0.15];
+        DEFAULT_M = 1.58885397;
+        DEFAULT_IXX = 0.000192309;
+
+        DEFAULT_CD = 0.472;
+        DEFAULT_CD_TABLE_X = [0; 5];
+        DEFAULT_CD_TABLE_Y = [0.472; 0.472];
+
+        DEFAULT_Cl0 = 0;
+        DEFAULT_Cl0_TABLE_X = [0; 5];
+        DEFAULT_Cl0_TABLE_Y = [0; 0];
+
+        DEFAULT_Clp = -4.5;
+        DEFAULT_Clp_TABLE_X = [0; 5];
+        DEFAULT_Clp_TABLE_Y = [-4.5; -4.5];
+
+        DEFAULT_Cldelta = 0;
+        DEFAULT_Cldelta_TABLE_X = [0; 5];
+        DEFAULT_Cldelta_TABLE_Y = [0; 0];
 
         VALID_AERO_MODELS = ["constant", "table"];
     end
@@ -64,8 +101,13 @@ classdef Projectile < handle
         function self = Projectile(aeroModel)
             self.stateDef = StateDef();
 
-            self.paramDefs.m = ParamDef(self.DEFAULT_M);
+            self.paramDefs.d = ParamDef(self.DEFAULT_D);
             self.paramDefs.S = ParamDef(self.DEFAULT_S);
+            self.paramDefs.nFins = ParamDef(self.DEFAULT_NFINS);
+            self.paramDefs.deltaFins = ParamDef(self.DEFAULT_DELTAFINS);
+
+            self.paramDefs.m = ParamDef(self.DEFAULT_M);
+            self.paramDefs.Ixx = ParamDef(self.DEFAULT_IXX);
             
             if nargin == 0
                 self.aeroModel = "constant";
@@ -108,14 +150,20 @@ classdef Projectile < handle
                     self.computeAeroCoeffs = @self.constantAeroModel;
                     
                     if ~self.isAeroModelInit
-                        self.paramDefs.CD = ParamDef(self.DEFAULT_CD);
+                        self.paramDefs.CD      = ParamDef(self.DEFAULT_CD);
+                        self.paramDefs.Cl0     = ParamDef(self.DEFAULT_Cl0);
+                        self.paramDefs.Clp     = ParamDef(self.DEFAULT_Clp);
+                        self.paramDefs.Cldelta = ParamDef(self.DEFAULT_Cldelta);
                     end
 
                 case "table"
                     self.computeAeroCoeffs = @self.tableAeroModel;
                     
                     if ~self.isAeroModelInit
-                        self.paramDefs.CD = ParamTableDef(self.DEFAULT_CD_TABLE_X, self.DEFAULT_CD_TABLE_Y);
+                        self.paramDefs.CD      = ParamTableDef(self.DEFAULT_CD_TABLE_X,      self.DEFAULT_CD_TABLE_Y);
+                        self.paramDefs.Cl0     = ParamTableDef(self.DEFAULT_Cl0_TABLE_X,     self.DEFAULT_Cl0_TABLE_Y);
+                        self.paramDefs.Clp     = ParamTableDef(self.DEFAULT_Clp_TABLE_X,     self.DEFAULT_Clp_TABLE_Y);
+                        self.paramDefs.Cldelta = ParamTableDef(self.DEFAULT_Cldelta_TABLE_X, self.DEFAULT_Cldelta_TABLE_Y);
                     end
 
                 otherwise
@@ -131,27 +179,75 @@ classdef Projectile < handle
 
             self.params = [];
             
-            self.mIdx = 0;
+            self.dIdx = 0;
             self.SIdx = 0;
+            self.nFinsIdx = 0;
+            self.deltaFinsIdx = 0;
+
+            self.mIdx = 0;
+            self.IxxIdx = 0;
     
             self.CDIdx = 0;
             self.CDTable_Mach0Idx = 0;
             self.CDTable_CD0Idx = 0;
             self.CDTable_Len = 0;
+
+            self.Cl0Idx = 0;
+            self.Cl0Table_Mach0Idx = 0;
+            self.Cl0Table_Cl0Idx = 0;
+            self.Cl0Table_Len = 0;
+    
+            self.ClpIdx = 0;
+            self.ClpTable_Mach0Idx = 0;
+            self.ClpTable_ClpIdx = 0;
+            self.ClpTable_Len = 0;
+    
+            self.CldeltaIdx = 0;
+            self.CldeltaTable_Mach0Idx = 0;
+            self.CldeltaTable_CldeltaIdx = 0;
+            self.CldeltaTable_Len = 0;
             
-            % m
-            self.mIdx = self.nParams + 1;
-            self.params = [self.params; self.paramDefs.m.value];
+            % d
+            self.dIdx = self.nParams + 1;
+            self.params = [self.params; self.paramDefs.d.value];
             
             % S
             self.SIdx = self.nParams + 1;
             self.params = [self.params; self.paramDefs.S.value];
+
+            % nFins
+            self.nFinsIdx = self.nParams + 1;
+            self.params = [self.params; self.paramDefs.nFins.value];
+
+            % deltaFins
+            self.deltaFinsIdx = self.nParams + 1;
+            self.params = [self.params; self.paramDefs.deltaFins.value];
+
+            % m
+            self.mIdx = self.nParams + 1;
+            self.params = [self.params; self.paramDefs.m.value];
+
+            % I
+            self.IxxIdx = self.nParams + 1;
+            self.params = [self.params; self.paramDefs.Ixx.value];
             
             switch self.aeroModel
                 case "constant"
                     % CD
                     self.CDIdx = self.nParams + 1;
                     self.params = [self.params; self.paramDefs.CD.value];
+
+                    % Cl0
+                    self.Cl0Idx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Cl0.value];
+
+                    % Clp
+                    self.ClpIdx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Clp.value];
+
+                    % Cldelta
+                    self.CldeltaIdx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Cldelta.value];
 
                 case "table"
                     % CD
@@ -162,6 +258,33 @@ classdef Projectile < handle
                     self.params = [self.params; self.paramDefs.CD.yValues];
                     
                     self.CDTable_Len = self.paramDefs.CD.nValues;
+
+                    % Cl0
+                    self.Cl0Table_Mach0Idx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Cl0.xValues];
+
+                    self.Cl0Table_Cl0Idx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Cl0.yValues];
+                    
+                    self.Cl0Table_Len = self.paramDefs.Cl0.nValues;
+
+                    % Clp
+                    self.ClpTable_Mach0Idx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Clp.xValues];
+
+                    self.ClpTable_ClpIdx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Clp.yValues];
+                    
+                    self.ClpTable_Len = self.paramDefs.Clp.nValues;
+
+                    % Cldelta
+                    self.CldeltaTable_Mach0Idx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Cldelta.xValues];
+
+                    self.CldeltaTable_CldeltaIdx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.Cldelta.yValues];
+                    
+                    self.CldeltaTable_Len = self.paramDefs.Cldelta.nValues;
             end
         end
 
@@ -171,18 +294,46 @@ classdef Projectile < handle
             self.estimatedParamCovar = [];
             self.estimatedParamIdxs = [];
 
+            % d
+            if self.paramDefs.d.isEstimated
+                self.estimatedParams = [self.estimatedParams; self.paramDefs.d.value];
+                self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.d.covar);
+                self.estimatedParamIdxs = [self.estimatedParamIdxs; self.dIdx];
+            end
+
+            % S
+            if self.paramDefs.S.isEstimated
+                self.estimatedParams = [self.estimatedParams; self.paramDefs.S.value];
+                self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.S.covar);
+                self.estimatedParamIdxs = [self.estimatedParamIdxs; self.SIdx];
+            end
+
+            % nFins
+            if self.paramDefs.nFins.isEstimated
+                self.estimatedParams = [self.estimatedParams; self.paramDefs.nFins.value];
+                self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.nFins.covar);
+                self.estimatedParamIdxs = [self.estimatedParamIdxs; self.nFinsIdx];
+            end
+
+            % deltaFins
+            if self.paramDefs.deltaFins.isEstimated
+                self.estimatedParams = [self.estimatedParams; self.paramDefs.deltaFins.value];
+                self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.deltaFins.covar);
+                self.estimatedParamIdxs = [self.estimatedParamIdxs; self.deltaFinsIdx];
+            end
+
             % m
             if self.paramDefs.m.isEstimated
                 self.estimatedParams = [self.estimatedParams; self.paramDefs.m.value];
                 self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.m.covar);
                 self.estimatedParamIdxs = [self.estimatedParamIdxs; self.mIdx];
             end
-            
-            % S
-            if self.paramDefs.S.isEstimated
-                self.estimatedParams = [self.estimatedParams; self.paramDefs.S.value];
-                self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.S.covar);
-                self.estimatedParamIdxs = [self.estimatedParamIdxs; self.SIdx];
+
+            % I
+            if self.paramDefs.Ixx.isEstimated
+                self.estimatedParams = [self.estimatedParams; self.paramDefs.Ixx.value];
+                self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.Ixx.covar);
+                self.estimatedParamIdxs = [self.estimatedParamIdxs; self.IxxIdx];
             end
             
             switch self.aeroModel
@@ -194,6 +345,27 @@ classdef Projectile < handle
                         self.estimatedParamIdxs = [self.estimatedParamIdxs; self.CDIdx];
                     end
 
+                    % Cl0
+                    if self.paramDefs.Cl0.isEstimated
+                        self.estimatedParams = [self.estimatedParams; self.paramDefs.Cl0.value];
+                        self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.Cl0.covar);
+                        self.estimatedParamIdxs = [self.estimatedParamIdxs; self.Cl0Idx];
+                    end
+
+                    % Clp
+                    if self.paramDefs.Clp.isEstimated
+                        self.estimatedParams = [self.estimatedParams; self.paramDefs.Clp.value];
+                        self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.Clp.covar);
+                        self.estimatedParamIdxs = [self.estimatedParamIdxs; self.ClpIdx];
+                    end
+
+                    % Cldelta
+                    if self.paramDefs.Cldelta.isEstimated
+                        self.estimatedParams = [self.estimatedParams; self.paramDefs.Cldelta.value];
+                        self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.Cldelta.covar);
+                        self.estimatedParamIdxs = [self.estimatedParamIdxs; self.CldeltaIdx];
+                    end
+
                 case "table"
                     % CD
                     for i = 1:length(self.paramDefs.CD.yValues)
@@ -203,37 +375,126 @@ classdef Projectile < handle
                             self.estimatedParamIdxs = [self.estimatedParamIdxs; self.CDTable_CD0Idx + (i - 1)];
                         end
                     end
+
+                    % Cl0
+                    for i = 1:length(self.paramDefs.Cl0.yValues)
+                        if self.paramDefs.Cl0.yIsEstimated(i)
+                            self.estimatedParams = [self.estimatedParams; self.paramDefs.Cl0.yValues(i)];
+                            self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.Cl0.yCovars(i));
+                            self.estimatedParamIdxs = [self.estimatedParamIdxs; self.Cl0Table_Cl0Idx + (i - 1)];
+                        end
+                    end
+
+                    % Clp
+                    for i = 1:length(self.paramDefs.Clp.yValues)
+                        if self.paramDefs.Clp.yIsEstimated(i)
+                            self.estimatedParams = [self.estimatedParams; self.paramDefs.Clp.yValues(i)];
+                            self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.Clp.yCovars(i));
+                            self.estimatedParamIdxs = [self.estimatedParamIdxs; self.ClpTable_ClpIdx + (i - 1)];
+                        end
+                    end
+
+                    % Cldelta
+                    for i = 1:length(self.paramDefs.Cldelta.yValues)
+                        if self.paramDefs.Cldelta.yIsEstimated(i)
+                            self.estimatedParams = [self.estimatedParams; self.paramDefs.Cldelta.yValues(i)];
+                            self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.Cldelta.yCovars(i));
+                            self.estimatedParamIdxs = [self.estimatedParamIdxs; self.CldeltaTable_CldeltaIdx + (i - 1)];
+                        end
+                    end
             end
+        end
+
+
+        function readPropsFromFile(self, filePath)
+            try
+                props = readmatrix(filePath);
+                props = props(:, 2);  % Remove header column
+            catch
+                error("Cannot read properties CSV file. File either does not exist or is not formatted properly.")
+            end
+
+            self.paramDefs.d         = ParamDef(props(1));
+            self.paramDefs.S         = ParamDef((pi / 4) * props(1) ^ 2);
+            self.paramDefs.nFins     = ParamDef(props(2));
+            self.paramDefs.deltaFins = ParamDef(props(3));
+            self.paramDefs.m         = ParamDef(props(4));
+            self.paramDefs.Ixx       = ParamDef(props(5));
+        end
+
+
+        function readAeroModelTablesFromFile(self, filePath)
+            try
+                aeroTable = readmatrix(filePath);
+            catch
+                error("Cannot read aero table CSV file. File either does not exist or is not formatted properly.")
+            end
+
+            machValues    =  aeroTable(:, 1);
+            CDValues      = -aeroTable(:, 2);
+            Cl0Values     =  aeroTable(:, 10);
+            ClpValues     =  aeroTable(:, 11);
+            CldeltaValues =  aeroTable(:, 12);
+
+            self.paramDefs.CD      = ParamTableDef(machValues, CDValues);
+            self.paramDefs.Cl0     = ParamTableDef(machValues, Cl0Values);
+            self.paramDefs.Clp     = ParamTableDef(machValues, ClpValues);
+            self.paramDefs.Cldelta = ParamTableDef(machValues, CldeltaValues);
         end
 
         
         % Model methods ============================================================================
 
-        function CD = constantAeroModel(self, ~)
+        function [CD, Cl0, Clp, Cldelta] = constantAeroModel(self, ~)
             CD = self.params(self.CDIdx);
+            Cl0 = self.params(self.Cl0Idx);
+            Clp = self.params(self.ClpIdx);
+            Cldelta = self.params(self.CldeltaIdx);
         end
 
 
-        function CD = tableAeroModel(self, mach)
-            dmach = self.params(self.CDTable_Mach0Idx + 1) - self.params(self.CDTable_Mach0Idx);
+        function [CD, Cl0, Clp, Cldelta] = tableAeroModel(self, mach)
+            dmach = self.params(self.CDTable_Mach0Idx + 1) - self.params(self.CDTable_Mach0Idx);  % TODO: Non-uniform table
 
             CD = 0;
             for i = 0:(self.CDTable_Len - 1)
                 mach_i = self.params(self.CDTable_Mach0Idx + i);
                 CD_i = self.params(self.CDTable_CD0Idx + i);
 
-                CD = CD + CD_i * self.linearKernel(mach - mach_i, dmach);
+                CD = CD + CD_i * self.linearKernel((mach - mach_i) / dmach);
+            end
+
+            Cl0 = 0;
+            for i = 0:(self.Cl0Table_Len - 1)
+                mach_i = self.params(self.Cl0Table_Mach0Idx + i);
+                Cl0_i = self.params(self.Cl0Table_Cl0Idx + i);
+
+                Cl0 = Cl0 + Cl0_i * self.linearKernel((mach - mach_i) / dmach);
+            end
+
+            Clp = 0;
+            for i = 0:(self.ClpTable_Len - 1)
+                mach_i = self.params(self.ClpTable_Mach0Idx + i);
+                Clp_i = self.params(self.ClpTable_ClpIdx + i);
+
+                Clp = Clp + Clp_i * self.linearKernel((mach - mach_i) / dmach);
+            end
+
+            Cldelta = 0;
+            for i = 0:(self.CldeltaTable_Len - 1)
+                mach_i = self.params(self.CldeltaTable_Mach0Idx + i);
+                Cldelta_i = self.params(self.CldeltaTable_CldeltaIdx + i);
+
+                Cldelta = Cldelta + Cldelta_i * self.linearKernel((mach - mach_i) / dmach);
             end
         end
         
 
-        function k = linearKernel(~, x, dx)
-            xx = x / dx;
-
-            if (-1 < xx) && (xx < 0)
-                k = 1 + xx;
-            elseif (0 <= xx) && (xx < 1)
-                k = 1 - xx;
+        function k = linearKernel(~, x)
+            if (-1 < x) && (x < 0)
+                k = 1 + x;
+            elseif (0 <= x) && (x < 1)
+                k = 1 - x;
             else
                 k = 0;
             end

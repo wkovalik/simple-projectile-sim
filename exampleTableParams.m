@@ -25,10 +25,10 @@ function propagateTruthTrajectory()
     earth.windModel = "table";
     
     % Set planet parameters
-    earth.paramDefs.vWindx.xValues = linspace(0, 1000, 6)';
+    earth.paramDefs.vWindx.xValues = linspace(0, 4000, 6)';
     earth.paramDefs.vWindx.yValues = linspace(-5, 15, 6)';
     
-    earth.paramDefs.vWindy.xValues = linspace(0, 1000, 6)';
+    earth.paramDefs.vWindy.xValues = linspace(0, 4000, 6)';
     earth.paramDefs.vWindy.yValues = linspace(10, 0, 6)';
     
     earth.update();
@@ -40,14 +40,13 @@ function propagateTruthTrajectory()
     
     % Set projectile time and state
     projectile.stateDef.time = 0;
-    projectile.stateDef.state = [0; 0; 0; 30; 0; -330];
+    projectile.stateDef.state = [0; 0; 0; 30; 0; -330; 120.0];
     
     % Set projectile models
     projectile.aeroModel = "table";
     
     % Set projectile parameters
-    projectile.paramDefs.CD.xValues = linspace(0, 1, 6)';
-    projectile.paramDefs.CD.yValues = linspace(0.15, 0.15, 6)';
+    projectile.readAeroModelTablesFromFile("data\csv\ANFinnerAeroUniform.csv");
     
     projectile.update();
     
@@ -126,12 +125,12 @@ function output = runEstimator(option)
     earthModel.paramDefs.H.covar = 1000 ^ 2;
     earthModel.paramDefs.H.isEstimated = true;
     
-    earthModel.paramDefs.vWindx.xValues = [0; 500; 1000];
+    earthModel.paramDefs.vWindx.xValues = [0; 2000; 4000];
     earthModel.paramDefs.vWindx.yValues = [0; 0; 0];
     earthModel.paramDefs.vWindx.yCovars = [50; 50; 50] .^ 2;
     earthModel.paramDefs.vWindx.yIsEstimated = [true; true; true];
     
-    earthModel.paramDefs.vWindy.xValues = [0; 500; 1000];
+    earthModel.paramDefs.vWindy.xValues = [0; 2000; 4000];
     earthModel.paramDefs.vWindy.yValues = [0; 0; 0];
     earthModel.paramDefs.vWindy.yCovars = [50; 50; 50] .^ 2;
     earthModel.paramDefs.vWindy.yIsEstimated = [true; true; true];
@@ -145,17 +144,15 @@ function output = runEstimator(option)
     
     % Set initial time, state, and state covariances
     projectileModel.time = 0;
-    projectileModel.stateDef.state = [0; 0; 0; 30; 0; -330];
-    projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
-    % projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    projectileModel.stateDef.state = [0; 0; 0; 30; 0; -330; 120.0];
+    projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5; 6.2832] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    % projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5; 6.2832] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
     
     % Set projectile models
     projectileModel.aeroModel = "table";
     
     % Set projectile parameters and parameter covariances
-    projectileModel.paramDefs.CD.xValues = linspace(0, 1, 6)';
-    projectileModel.paramDefs.CD.yValues = linspace(0.15, 0.15, 6)';
-    projectileModel.paramDefs.CD.yIsEstimated = false(1, 6)';
+    projectileModel.readAeroModelTablesFromFile("data\csv\ANFinnerAeroUniform.csv");
     
     projectileModel.update();
     

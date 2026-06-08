@@ -27,7 +27,7 @@ function propagateTruthTrajectory()
     
     % Set initial time and state
     projectile.stateDef.time = 0;
-    projectile.stateDef.state = [0; 0; 0; 30; 0; -330];
+    projectile.stateDef.state = [0; 0; 0; 30; 0; -330; 120.0];
 
     projectile.update();
     
@@ -104,9 +104,9 @@ function output = runEstimator(option)
     
     % Set initial time, state, and state covariances
     projectileModel.time = 0;
-    projectileModel.stateDef.state = [0; 0; 0; 35; 5; -325];
-    projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
-    % projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    projectileModel.stateDef.state = [0; 0; 0; 35; 5; -325; 125];
+    % projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5; 6.2832] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5; 6.2832] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
     
     projectileModel.update();
     
@@ -217,7 +217,7 @@ function plotResults()
 
     % Get convergence histories
     vIterations = output.iterations.state0(4:6, :);
-    vStdDevIterations = output.iterations.stateCovar0([22, 29, 36], :) .^ 0.5;
+    vStdDevIterations = output.iterations.stateCovar0([25, 33, 41], :) .^ 0.5;
     vPlusIterations = vIterations + vStdDevIterations;
     vMinusIterations = vIterations - vStdDevIterations;
 

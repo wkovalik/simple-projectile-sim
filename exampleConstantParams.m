@@ -38,10 +38,10 @@ function propagateTruthTrajectory()
     
     % Set initial time and state
     projectile.stateDef.time = 0;
-    projectile.stateDef.state = [0; 0; 0; 30; 0; -330];
+    projectile.stateDef.state = [0; 0; 0; 30; 0; -330; 120.0];
     
     % Set projectile parameters
-    projectile.paramDefs.CD.value = 0.15;
+    projectile.paramDefs.CD.value = 0.472;
     
     projectile.update();
     
@@ -129,13 +129,13 @@ function output = runEstimator(option)
     
     % Set initial time, state, and state covariances
     projectileModel.time = 0;
-    projectileModel.stateDef.state = [0; 0; 0; 30; 0; -330];
-    projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
-    % projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    projectileModel.stateDef.state = [0; 0; 0; 30; 0; -330; 120];
+    % projectileModel.stateDef.covar = diag([0.01; 0.01; 0.01; 0.5; 0.5; 5; 6.2832] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
+    projectileModel.stateDef.covar = diag([0; 0; 0; 0.5; 0.5; 5; 6.2832] .^ 2);  % TODO: Translate (V, az, el) with covars to (vx, vy, vz)
     
     % Set projectile parameters and parameter covariances
-    projectileModel.paramDefs.CD.value = 0.165;
-    projectileModel.paramDefs.CD.covar = 0.025 ^ 2;
+    projectileModel.paramDefs.CD.value = 0.5;
+    projectileModel.paramDefs.CD.covar = 0.1 ^ 2;
     projectileModel.paramDefs.CD.isEstimated = true;
     
     projectileModel.update();
