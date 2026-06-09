@@ -9,6 +9,9 @@ classdef Planet < handle
         estimatedParams = [];
         estimatedParamCovar = [];
 
+        consideredParams = [];
+        consideredParamCovar = [];
+
         gravityModel
         atmosphereModel
         windModel
@@ -19,6 +22,9 @@ classdef Planet < handle
 
         nEstimatedParams = 0;
         estimatedParamIdxs = [];
+
+        nConsideredParams = 0;
+        consideredParamIdxs = [];
 
         gIdx = 0;
         
@@ -109,6 +115,7 @@ classdef Planet < handle
             self.updateModels();
             self.updateParams();
             self.updateEstimatedParams();
+            self.updateConsideredParams();
         end
 
 
@@ -383,6 +390,107 @@ classdef Planet < handle
             end
         end
 
+
+        function updateConsideredParams(self)
+            self.consideredParams = [];
+            self.consideredParamCovar = [];
+            self.consideredParamIdxs = [];
+
+            switch self.gravityModel
+                % g
+                case "constant"
+                    if self.paramDefs.g.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.g.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.g.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.gIdx];
+                    end
+                
+                otherwise
+                    error("Invalid gravity model: %s.", self.gravityModel)
+            end
+
+            switch self.atmosphereModel
+                case "constant"
+                    % rho
+                    if self.paramDefs.rho.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.rho.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.rho.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.rhoIdx];
+                    end
+                    
+                    % a
+                    if self.paramDefs.a.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.a.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.a.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.aIdx];
+                    end
+                
+                case "exponential"
+                    % rho0
+                    if self.paramDefs.rho0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.rho0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.rho0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.rho0Idx];
+                    end
+                    
+                    % H
+                    if self.paramDefs.H.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.H.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.H.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.HIdx];
+                    end
+                    
+                    % a
+                    if self.paramDefs.a.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.a.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.a.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.aIdx];
+                    end
+                
+                otherwise
+                    error("Invalid atmosphere model: %s.", self.atmosphereModel)
+            end
+
+            switch self.windModel
+                case "constant"
+                    % vWindx
+                    if self.paramDefs.vWindx.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.vWindx.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.vWindx.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.vWindxIdx];
+                    end
+                    
+                    % vWindy
+                    if self.paramDefs.vWindy.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.vWindy.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.vWindy.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.vWindyIdx];
+                    end
+
+                case "table"
+                    % vWindx
+                    for i = 1:length(self.paramDefs.vWindx.yValues)
+                        if self.paramDefs.vWindx.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.vWindx.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.vWindx.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.vWindxTable_vWindx0Idx + (i - 1)];
+                        end
+                    end
+                    
+                    % vWindy
+                    for i = 1:length(self.paramDefs.vWindy.yValues)
+                        if self.paramDefs.vWindy.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.vWindy.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.vWindy.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.vWindyTable_vWindy0Idx + (i - 1)];
+                        end
+                    end
+
+                otherwise
+                    error("Invalid wind model: %s.", self.windModel)
+            end
+        end
+
         
         % Model methods ============================================================================
 
@@ -492,6 +600,33 @@ classdef Planet < handle
                 self.estimatedParamIdxs = Validator.validateType(estimatedParamIdxs, "double");
             else
                 self.estimatedParamIdxs = estimatedParamIdxs;
+            end
+        end
+
+        function set.consideredParams(self, consideredParams)
+            if Settings.VALIDATE_FLAG
+                self.consideredParams = Validator.validateType(consideredParams, "double");
+            else
+                self.consideredParams = consideredParams;
+            end
+
+            self.nConsideredParams = length(consideredParams);
+        end
+
+        function set.consideredParamCovar(self, consideredParamCovar)
+            if Settings.VALIDATE_FLAG
+                consideredParamCovar = Validator.validateType(consideredParamCovar, "double");
+                self.consideredParamCovar = Validator.validateSize(consideredParamCovar, [self.nConsideredParams, self.nConsideredParams]);
+            else
+                self.consideredParamCovar = consideredParamCovar;
+            end
+        end
+
+        function set.consideredParamIdxs(self, consideredParamIdxs)
+            if Settings.VALIDATE_FLAG
+                self.consideredParamIdxs = Validator.validateType(consideredParamIdxs, "double");
+            else
+                self.consideredParamIdxs = consideredParamIdxs;
             end
         end
 

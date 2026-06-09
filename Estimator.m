@@ -15,6 +15,7 @@ classdef Estimator < handle
 
     properties (SetAccess = protected)
         includeParamSTM = false;
+        includeConsideredDynamicsParamSTM = false;
     end
 
 
@@ -135,6 +136,14 @@ classdef Estimator < handle
                 self.includeParamSTM = Validator.validateType(includeParamSTM, "logical");
             else
                 self.includeParamSTM = includeParamSTM;
+            end
+        end
+
+        function set.includeConsideredDynamicsParamSTM(self, includeConsideredDynamicsParamSTM)
+            if Settings.VALIDATE_FLAG
+                self.includeConsideredDynamicsParamSTM = Validator.validateType(includeConsideredDynamicsParamSTM, "logical");
+            else
+                self.includeConsideredDynamicsParamSTM = includeConsideredDynamicsParamSTM;
             end
         end
     end

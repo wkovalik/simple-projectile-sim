@@ -4,8 +4,8 @@ rng(0);
 
 % TODO: Set maximum integrator step size!
 
-% propagateTruthTrajectory();
-runEstimator("sqrtsequential");  % "batch", "squential", or "sqrtsequential"
+propagateTruthTrajectory();
+runEstimator("sequential");  % "sequential" or "sqrtsequential"
 plotResults();
 
 load("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
@@ -110,6 +110,9 @@ function output = runEstimator(option)
     % Set projectile parameters
     projectileModel.readPropsFromFile("data\csv\ANFinnerProps.csv");
     projectileModel.readAeroModelTablesFromFile("data\csv\ANFinnerAeroUniform.csv");
+
+    projectileModel.paramDefs.m.covar = 0.1 ^ 2;
+    projectileModel.paramDefs.m.isConsidered = true;
     
     projectileModel.update();
     
@@ -123,19 +126,15 @@ function output = runEstimator(option)
     % Set sensor measurement properties
     rollGyroSensorModel.ID = 1;
     rollGyroSensorModel.measNoiseCovar = 0.0175 ^ 2;
-    
-    rollGyroSensorModel.update();
-    
+
     % ----------------------------------------------------------------------------------------------
     
     % Create estimator
     switch option
-        case "batch"
-            estimator = BatchEstimator(projectileModelDynamics, { rollGyroSensorModel });
         case "sequential"
-            estimator = SequentialEstimator(projectileModelDynamics, { rollGyroSensorModel });
+            estimator = SequentialConsiderEstimator(projectileModelDynamics, { rollGyroSensorModel });
         case "sqrtsequential"
-            estimator = SqrtSequentialEstimator(projectileModelDynamics, { rollGyroSensorModel });
+            estimator = SqrtSequentialConsiderEstimator(projectileModelDynamics, { rollGyroSensorModel });
         otherwise
             error("Invalid estimator option.")
     end

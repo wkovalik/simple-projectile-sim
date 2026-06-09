@@ -102,9 +102,9 @@ classdef Propagator < handle
             stateHistory = zeros(nStates, nHistoryLen);
             
             % Preallocate STM histories
-            stateSTMHistory = eye(nStates ^ 2, nHistoryLen);
+            stateSTMHistory = zeros(nStates ^ 2, nHistoryLen);
             if includeParamSTM
-                paramSTMHistory = eye(nStates * nEstimatedParams, nHistoryLen);
+                paramSTMHistory = zeros(nStates * nEstimatedParams, nHistoryLen);
             end
 
             % Set initial time and state
@@ -188,6 +188,159 @@ classdef Propagator < handle
             stateSTMHistory(:, (nSteps + 2):end) = [];
             if includeParamSTM
                 paramSTMHistory(:, (nSteps + 2):end) = [];
+            end
+        end
+
+
+        function [timeHistory, stateHistory, stateSTMHistory, paramSTMHistory, consideredDynamicsParamSTMHistory] = propagateWithConsideredSTM(self, finalTime)
+            % Set integrator derivative function
+            self.integrator.computeStateDeriv = @(varargin) self.projectileDynamics.computeAugStateDeriv(varargin{:});  % See Note 1
+
+            % Preallocate time and state histories
+            nHistoryLen = Settings.DEFAULT_HISTORY_LEN;
+            nStates = self.projectileDynamics.projectile.nStates;
+            nEstimatedParams = self.projectileDynamics.projectile.nEstimatedParams + self.projectileDynamics.planet.nEstimatedParams;
+            nConsideredDynamicsParams = self.projectileDynamics.projectile.nConsideredParams + self.projectileDynamics.planet.nConsideredParams;
+
+            includeParamSTM = logical(nEstimatedParams);
+            includeConsideredDynamicsParamSTM = logical(nConsideredDynamicsParams);
+
+            if ~includeParamSTM
+                paramSTM = [];
+                paramSTMHistory = [];
+            end
+            if ~includeConsideredDynamicsParamSTM
+                consideredDynamicsParamSTM = [];
+                consideredDynamicsParamSTMHistory = [];
+            end
+
+            timeHistory = zeros(1, nHistoryLen);
+            stateHistory = zeros(nStates, nHistoryLen);
+
+            % Preallocate STM histories
+            stateSTMHistory = zeros(nStates ^ 2, nHistoryLen);
+            if includeParamSTM
+                paramSTMHistory = zeros(nStates * nEstimatedParams, nHistoryLen);
+            end
+            if includeConsideredDynamicsParamSTM
+                consideredDynamicsParamSTMHistory = zeros(nStates * nConsideredDynamicsParams, nHistoryLen);
+            end
+
+            % Set initial time and state
+            time = self.projectileDynamics.projectile.time;
+            state = self.projectileDynamics.projectile.state;
+
+            % Set initial STMs
+            stateSTM = eye(nStates);
+            stateSTM = stateSTM(:);
+
+            if includeParamSTM
+                paramSTM = zeros(nStates, nEstimatedParams);
+                paramSTM = paramSTM(:);
+            end
+            if includeConsideredDynamicsParamSTM
+                consideredDynamicsParamSTM = zeros(nStates, nConsideredDynamicsParams);
+                consideredDynamicsParamSTM = consideredDynamicsParamSTM(:);
+            end
+
+            % Create augmented state
+            augState = [state; stateSTM; paramSTM; consideredDynamicsParamSTM];
+
+            % Store initial time and state
+            timeHistory(1) = time;
+            stateHistory(:, 1) = state;
+
+            % Store initial STMs
+            stateSTMHistory(:, 1) = stateSTM;
+            if includeParamSTM
+                paramSTMHistory(:, 1) = paramSTM;
+            end
+            if includeConsideredDynamicsParamSTM
+                consideredDynamicsParamSTMHistory(:, 1) = consideredDynamicsParamSTM;
+            end
+
+            % --------------------------------------------------------------------------------------
+            % Begin propagation loop
+            % --------------------------------------------------------------------------------------
+
+            iStateEnd = nStates;
+            iStateSTMEnd = nStates + nStates ^ 2;
+            if includeParamSTM
+                nEstimatedParams = self.projectileDynamics.projectile.nEstimatedParams + self.projectileDynamics.planet.nEstimatedParams;
+
+                iParamSTMEnd = iStateSTMEnd + nStates * nEstimatedParams;
+            end
+            if includeConsideredDynamicsParamSTM
+                nConsideredDynamicsParams = self.projectileDynamics.projectile.nConsideredParams + self.projectileDynamics.planet.nConsideredParams;
+
+                if includeParamSTM
+                    iConsideredDynamicsSTMEnd = iParamSTMEnd + nStates * nConsideredDynamicsParams;
+                else
+                    iConsideredDynamicsSTMEnd = iStateSTMEnd + nStates * nConsideredDynamicsParams;
+                end
+            end
+
+            nSteps = 0;
+            while time < (finalTime - Settings.DEFAULT_TIME_TOL)  % See Settings: Note 1
+                % Step to next time and augmented state
+                [nextTime, nextAugState] = self.integrator.step(time, augState);
+
+                % Extract next state
+                nextState = nextAugState(1:iStateEnd);
+
+                % Detect ground impact
+                if (nextTime > 5) && (nextState(3) > 0)
+                    break
+                end
+
+                time = nextTime;
+                state = nextState;
+                augState = nextAugState;
+
+                % Extract STMs
+                stateSTM = augState((iStateEnd + 1):iStateSTMEnd);
+                if includeParamSTM
+                    paramSTM = augState((iStateSTMEnd + 1):iParamSTMEnd);
+                end
+                if includeConsideredDynamicsParamSTM
+                    if includeParamSTM
+                        consideredDynamicsParamSTM = augState((iParamSTMEnd + 1):iConsideredDynamicsSTMEnd);
+                    else
+                        consideredDynamicsParamSTM = augState((iStateSTMEnd + 1):iConsideredDynamicsSTMEnd);
+                    end
+                end
+
+                % Store next time and state
+                nSteps = nSteps + 1;
+
+                timeHistory(nSteps + 1) = time;
+                stateHistory(:, nSteps + 1) = state;
+
+                % Store STMs
+                stateSTMHistory(:, nSteps + 1) = stateSTM;
+                if includeParamSTM
+                    paramSTMHistory(:, nSteps + 1) = paramSTM;
+                end
+                if includeConsideredDynamicsParamSTM
+                    consideredDynamicsParamSTMHistory(:, nSteps + 1) = consideredDynamicsParamSTM;
+                end
+            end
+
+            % --------------------------------------------------------------------------------------
+            % End propagation loop
+            % --------------------------------------------------------------------------------------
+
+            % Remove all unused entries in time and state histories
+            timeHistory((nSteps + 2):end) = [];
+            stateHistory(:, (nSteps + 2):end) = [];
+
+            % Remove all unused entries in STM histories
+            stateSTMHistory(:, (nSteps + 2):end) = [];
+            if includeParamSTM
+                paramSTMHistory(:, (nSteps + 2):end) = [];
+            end
+            if includeConsideredDynamicsParamSTM
+                consideredDynamicsParamSTMHistory(:, (nSteps + 2):end) = [];
             end
         end
 

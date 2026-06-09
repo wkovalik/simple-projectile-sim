@@ -14,7 +14,7 @@ classdef Settings
         DEFAULT_MAX_ITERS = 10;
         DEFAULT_CONVERGENCE_TOL = 1E-06;
 
-        VALIDATE_FLAG = false;  % Keep on while developing. Turn off for faster performance.
+        VALIDATE_FLAG = true;  % Keep on while developing. Turn off for faster performance.
     end
 end
 

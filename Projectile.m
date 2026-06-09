@@ -14,6 +14,9 @@ classdef Projectile < handle
         estimatedParams = [];
         estimatedParamCovar = [];
 
+        consideredParams = [];
+        consideredParamCovar = [];
+
         aeroModel
     end
 
@@ -22,6 +25,9 @@ classdef Projectile < handle
 
         nEstimatedParams = 0;
         estimatedParamIdxs = [];
+
+        nConsideredParams = 0;
+        consideredParamIdxs = [];
 
         dIdx = 0;
         SIdx = 0;
@@ -129,6 +135,7 @@ classdef Projectile < handle
             self.updateModels();
             self.updateParams();
             self.updateEstimatedParams();
+            self.updateConsideredParams();
         end
 
 
@@ -406,6 +413,123 @@ classdef Projectile < handle
         end
 
 
+        function updateConsideredParams(self)
+            self.consideredParams = [];
+            self.consideredParamCovar = [];
+            self.consideredParamIdxs = [];
+
+            % d
+            if self.paramDefs.d.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.d.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.d.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.dIdx];
+            end
+
+            % S
+            if self.paramDefs.S.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.S.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.S.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.SIdx];
+            end
+
+            % nFins
+            if self.paramDefs.nFins.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.nFins.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.nFins.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.nFinsIdx];
+            end
+
+            % deltaFins
+            if self.paramDefs.deltaFins.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.deltaFins.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.deltaFins.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.deltaFinsIdx];
+            end
+
+            % m
+            if self.paramDefs.m.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.m.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.m.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.mIdx];
+            end
+
+            % I
+            if self.paramDefs.Ixx.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.Ixx.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Ixx.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.IxxIdx];
+            end
+            
+            switch self.aeroModel
+                case "constant"
+                    % CD
+                    if self.paramDefs.CD.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CD.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CD.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CDIdx];
+                    end
+
+                    % Cl0
+                    if self.paramDefs.Cl0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.Cl0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cl0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.Cl0Idx];
+                    end
+
+                    % Clp
+                    if self.paramDefs.Clp.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.Clp.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Clp.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.ClpIdx];
+                    end
+
+                    % Cldelta
+                    if self.paramDefs.Cldelta.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.Cldelta.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cldelta.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CldeltaIdx];
+                    end
+
+                case "table"
+                    % CD
+                    for i = 1:length(self.paramDefs.CD.yValues)
+                        if self.paramDefs.CD.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CD.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CD.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CDTable_CD0Idx + (i - 1)];
+                        end
+                    end
+
+                    % Cl0
+                    for i = 1:length(self.paramDefs.Cl0.yValues)
+                        if self.paramDefs.Cl0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.Cl0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cl0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.Cl0Table_Cl0Idx + (i - 1)];
+                        end
+                    end
+
+                    % Clp
+                    for i = 1:length(self.paramDefs.Clp.yValues)
+                        if self.paramDefs.Clp.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.Clp.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Clp.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.ClpTable_ClpIdx + (i - 1)];
+                        end
+                    end
+
+                    % Cldelta
+                    for i = 1:length(self.paramDefs.Cldelta.yValues)
+                        if self.paramDefs.Cldelta.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.Cldelta.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cldelta.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CldeltaTable_CldeltaIdx + (i - 1)];
+                        end
+                    end
+            end
+        end
+
+
         function readPropsFromFile(self, filePath)
             try
                 props = readmatrix(filePath);
@@ -571,6 +695,33 @@ classdef Projectile < handle
                 self.estimatedParamIdxs = Validator.validateType(estimatedParamIdxs, "double");
             else
                 self.estimatedParamIdxs = estimatedParamIdxs;
+            end
+        end
+
+        function set.consideredParams(self, consideredParams)
+            if Settings.VALIDATE_FLAG
+                self.consideredParams = Validator.validateType(consideredParams, "double");
+            else
+                self.consideredParams = consideredParams;
+            end
+
+            self.nConsideredParams = length(consideredParams);
+        end
+
+        function set.consideredParamCovar(self, consideredParamCovar)
+            if Settings.VALIDATE_FLAG
+                consideredParamCovar = Validator.validateType(consideredParamCovar, "double");
+                self.consideredParamCovar = Validator.validateSize(consideredParamCovar, [self.nConsideredParams, self.nConsideredParams]);
+            else
+                self.consideredParamCovar = consideredParamCovar;
+            end
+        end
+
+        function set.consideredParamIdxs(self, consideredParamIdxs)
+            if Settings.VALIDATE_FLAG
+                self.consideredParamIdxs = Validator.validateType(consideredParamIdxs, "double");
+            else
+                self.consideredParamIdxs = consideredParamIdxs;
             end
         end
 
