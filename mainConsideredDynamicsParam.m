@@ -88,7 +88,7 @@ function output = runEstimator(option)
     
     % Set planet parameters and parameter covariances
     earthModel.paramDefs.H.value = 9000;
-    earthModel.paramDefs.H.covar = 1000 ^ 2;
+    earthModel.paramDefs.H.covar = 2500 ^ 2;
     earthModel.paramDefs.H.isEstimated = true;
     
     earthModel.update();

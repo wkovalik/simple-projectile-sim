@@ -56,6 +56,8 @@ classdef Sensor < handle
 
         function updateConsideredParams(self)
             self.consideredParams = [];
+            self.consideredParamCovar = [];
+            self.consideredParamIdxs = [];
         end
 
         

@@ -578,38 +578,36 @@ classdef Projectile < handle
 
 
         function [CD, Cl0, Clp, Cldelta] = tableAeroModel(self, mach)
-            dmach = self.params(self.CDTable_Mach0Idx + 1) - self.params(self.CDTable_Mach0Idx);  % TODO: Non-uniform table
+            minMach = self.params(self.CDTable_Mach0Idx);
 
-            CD = 0;
-            for i = 0:(self.CDTable_Len - 1)
-                mach_i = self.params(self.CDTable_Mach0Idx + i);
-                CD_i = self.params(self.CDTable_CD0Idx + i);
+            if mach < minMach
+                CD      = self.params(self.CDTable_CD0Idx);
+                Cl0     = self.params(self.Cl0Table_Cl0Idx);
+                Clp     = self.params(self.ClpTable_ClpIdx);
+                Cldelta = self.params(self.CldeltaTable_CldeltaIdx);
 
-                CD = CD + CD_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            Cl0 = 0;
-            for i = 0:(self.Cl0Table_Len - 1)
-                mach_i = self.params(self.Cl0Table_Mach0Idx + i);
-                Cl0_i = self.params(self.Cl0Table_Cl0Idx + i);
-
-                Cl0 = Cl0 + Cl0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            Clp = 0;
-            for i = 0:(self.ClpTable_Len - 1)
-                mach_i = self.params(self.ClpTable_Mach0Idx + i);
-                Clp_i = self.params(self.ClpTable_ClpIdx + i);
-
-                Clp = Clp + Clp_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            Cldelta = 0;
-            for i = 0:(self.CldeltaTable_Len - 1)
-                mach_i = self.params(self.CldeltaTable_Mach0Idx + i);
-                Cldelta_i = self.params(self.CldeltaTable_CldeltaIdx + i);
-
-                Cldelta = Cldelta + Cldelta_i * self.linearKernel((mach - mach_i) / dmach);
+            else
+                dmach = self.params(self.CDTable_Mach0Idx + 1) - self.params(self.CDTable_Mach0Idx);  % Using CD table since entire table uses same Mach points  % TODO: Non-uniform table
+    
+                CD = 0;
+                Cl0 = 0;
+                Clp = 0;
+                Cldelta = 0;
+    
+                for i = 0:(self.CDTable_Len - 1)  % Using CD table since entire table uses same Mach points
+                    mach_i = self.params(self.CDTable_Mach0Idx + i);
+                    normalized_dMach_i = (mach - mach_i) / dmach;
+    
+                    CD_i      = self.params(self.CDTable_CD0Idx + i);
+                    Cl0_i     = self.params(self.Cl0Table_Cl0Idx + i);
+                    Clp_i     = self.params(self.ClpTable_ClpIdx + i);
+                    Cldelta_i = self.params(self.CldeltaTable_CldeltaIdx + i);
+    
+                    CD      = CD      + CD_i      * self.linearKernel(normalized_dMach_i);
+                    Cl0     = Cl0     + Cl0_i     * self.linearKernel(normalized_dMach_i);
+                    Clp     = Clp     + Clp_i     * self.linearKernel(normalized_dMach_i);
+                    Cldelta = Cldelta + Cldelta_i * self.linearKernel(normalized_dMach_i);
+                end
             end
         end
         

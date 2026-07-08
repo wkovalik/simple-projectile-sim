@@ -26,10 +26,10 @@ function propagateTruthTrajectory()
     
     % Set planet parameters
     earth.paramDefs.vWindx.xValues = linspace(0, 4000, 6)';
-    earth.paramDefs.vWindx.yValues = linspace(-5, 15, 6)';
+    earth.paramDefs.vWindx.yValues = linspace(0, 10, 6)';
     
     earth.paramDefs.vWindy.xValues = linspace(0, 4000, 6)';
-    earth.paramDefs.vWindy.yValues = linspace(10, 0, 6)';
+    earth.paramDefs.vWindy.yValues = linspace(0, -15, 6)';
     
     earth.update();
     
@@ -63,11 +63,6 @@ function propagateTruthTrajectory()
     rangeSensor.samplePeriod = 0.05;
     rangeSensor.measNoiseCovar = 0.01 ^ 2;
     
-    % Set sensor parameters
-    rangeSensor.paramDefs.x.value = -1;
-    
-    rangeSensor.update();
-    
     % ----------------------------------------------------------------------------------------------
     
     % Create direction finder sensor
@@ -77,11 +72,6 @@ function propagateTruthTrajectory()
     directionSensor.ID = 2;
     directionSensor.samplePeriod = 0.05;
     directionSensor.measNoiseCovar = diag(deg2rad([0.1; 0.1]) .^ 2);
-    
-    % Set sensor parameters
-    directionSensor.paramDefs.x.value = -1;
-    
-    directionSensor.update();
 
     % ----------------------------------------------------------------------------------------------
 
@@ -178,11 +168,6 @@ function output = runEstimator(option)
     rangeSensorModel.ID = 1;
     rangeSensorModel.measNoiseCovar = 0.01 ^ 2;
     
-    % Set sensor parameters
-    rangeSensorModel.paramDefs.x.value = -1;
-    
-    rangeSensorModel.update();
-    
     % ----------------------------------------------------------------------------------------------
     
     % Create direction finder model
@@ -191,11 +176,6 @@ function output = runEstimator(option)
     % Set sensor measurement properties
     directionSensorModel.ID = 2;
     directionSensorModel.measNoiseCovar = diag(deg2rad([0.1; 0.1]) .^ 2);
-    
-    % Set sensor parameters
-    directionSensorModel.paramDefs.x.value = -1;
-    
-    directionSensorModel.update();
 
     % ----------------------------------------------------------------------------------------------
 

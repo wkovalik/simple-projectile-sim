@@ -3,8 +3,14 @@ classdef AccelerometerSensor < Sensor
         projectileDynamics
     end
 
+    properties (SetAccess = private)
+        biasIdx = 0;
+    end
+
     properties (Constant)
         nMeas = 1;
+
+        DEFAULT_BIAS = 0;
     end
 
     methods
@@ -19,8 +25,38 @@ classdef AccelerometerSensor < Sensor
 
             self.projectile = projectile;
             self.projectileDynamics = projectileDynamics;
+
+            self.paramDefs.bias = ParamDef(self.DEFAULT_BIAS);
+
+            self.updateParams();
         end
 
+
+        % Update methods ===========================================================================
+
+        function updateParams(self)
+            self.params = [];
+
+            self.biasIdx = 0;
+
+            self.biasIdx = self.nParams + 1;
+            self.params = [self.params; self.paramDefs.bias.value];
+        end
+
+
+        function updateConsideredParams(self)
+            self.consideredParams = [];
+            self.consideredParamCovar = [];
+            self.consideredParamIdxs = [];
+
+            % bias
+            if self.paramDefs.bias.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.bias.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.bias.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.biasIdx];
+            end
+        end
+        
 
         % Measurement methods ======================================================================
 
@@ -32,6 +68,9 @@ classdef AccelerometerSensor < Sensor
             
             % Get projectile parameters
             m = self.projectile.params(self.projectile.mIdx);
+
+            % Get sensor parameters
+            bias = self.params(self.biasIdx);
             
             % Compute acceleration
             FGrav = self.projectileDynamics.computeGravityForce();
@@ -40,11 +79,11 @@ classdef AccelerometerSensor < Sensor
             F = FGrav + FAero;
             a = F / m;
             
-            % Compute component along velocity
+            % Compute component along velocity (with bias)
             V = (vx ^ 2 + vy ^ 2 + vz ^ 2) ^ 0.5;
             unit_v = [vx; vy; vz] / V;
 
-            a = dot(a, unit_v);
+            a = dot(a, unit_v) + bias;
             
             % Compute noisy acceleration measurement
             epsa = self.measNoiseCovarSqrt * randn();
@@ -61,6 +100,9 @@ classdef AccelerometerSensor < Sensor
             
             % Get projectile parameters
             m = self.projectile.params(self.projectile.mIdx);
+
+            % Get sensor parameters
+            bias = self.params(self.biasIdx);
             
             % Compute acceleration
             FGrav = self.projectileDynamics.computeGravityForce();
@@ -69,11 +111,11 @@ classdef AccelerometerSensor < Sensor
             F = FGrav + FAero;
             a = F / m;
             
-            % Compute component along velocity
+            % Compute component along velocity (with bias)
             V = (vx ^ 2 + vy ^ 2 + vz ^ 2) ^ 0.5;
             unit_v = [vx; vy; vz] / V;
 
-            a = dot(a, unit_v);
+            a = dot(a, unit_v) + bias;
         end
 
 
