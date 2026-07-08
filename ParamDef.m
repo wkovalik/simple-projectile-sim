@@ -3,14 +3,21 @@ classdef ParamDef
         value = 0;
         covar = 0;
         isEstimated = false;
+        isConsidered = false;
     end
 
 
     methods
         % Constructor ==============================================================================
 
-        function obj = ParamDef(value, covar, isEstimated)
-            if nargin == 3
+        function obj = ParamDef(value, covar, isEstimated, isConsidered)
+            if nargin == 4
+                obj.value = value;
+                obj.covar = covar;
+                obj.isEstimated = isEstimated;
+                obj.isConsidered = isConsidered;
+
+            elseif nargin == 3
                 obj.value = value;
                 obj.covar = covar;
                 obj.isEstimated = isEstimated;
@@ -49,6 +56,14 @@ classdef ParamDef
                 obj.isEstimated = Validator.validateType(isEstimated, "logical");
             else
                 obj.isEstimated = isEstimated;
+            end
+        end
+
+        function obj = set.isConsidered(obj, isConsidered)
+            if Settings.VALIDATE_FLAG
+                obj.isConsidered = Validator.validateType(isConsidered, "logical");
+            else
+                obj.isConsidered = isConsidered;
             end
         end
     end

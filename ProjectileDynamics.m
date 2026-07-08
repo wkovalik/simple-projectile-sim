@@ -6,6 +6,7 @@ classdef ProjectileDynamics < handle
         planet
 
         includeParamSTM = false;
+        includeConsideredDynamicsParamSTM = false;
     end
 
     properties (SetAccess = private)
@@ -70,6 +71,7 @@ classdef ProjectileDynamics < handle
 
             d = self.projectile.params(self.projectile.dIdx);
             S = self.projectile.params(self.projectile.SIdx);
+            nFins = self.projectile.params(self.projectile.nFinsIdx);
             deltaFins = self.projectile.params(self.projectile.deltaFinsIdx);
             
             h = -z;
@@ -109,7 +111,7 @@ classdef ProjectileDynamics < handle
             CY = CY0 - CNalpha * sinBeta          + pNormalized * CNpalpha * sinAlphaCosBeta;
             CZ = CZ0 - CNalpha * sinAlphaCosBeta  - pNormalized * CNpalpha * sinBeta;
             
-            Cl = Cl0 + pNormalized * Clp + Cldelta * deltaFins;
+            Cl = Cl0 + pNormalized * Clp + nFins * Cldelta * deltaFins;
             Cm = Cm0 + CMalpha * sinAlphaCosBeta  + pNormalized * CMpalpha * sinBeta         + qNormalized * CMq;
             Cn = Cn0 - CMalpha * sinBeta          + pNormalized * CMpalpha * sinAlphaCosBeta + rNormalized * CMq;
 
@@ -214,32 +216,106 @@ classdef ProjectileDynamics < handle
             stateDeriv(11) = M(2) / Iz - dIxIz * r * p                    - tanTheta * r * r;
             stateDeriv(12) = M(3) / Iz + dIxIz * q * p + tanTheta * r * q;
         end
+        
 
+        % Note: These are the old functions prior to consider filter implementation
+        % function augStateDeriv = computeAugStateDeriv(self, augState)
+        %     nStates = self.projectile.nStates;
+        % 
+        %     iStateEnd = nStates;
+        %     iStateSTMEnd = nStates + nStates ^ 2;
+        % 
+        %     state = augState(1:iStateEnd);
+        %     stateSTM = augState((iStateEnd + 1):iStateSTMEnd);
+        %     if self.includeParamSTM
+        %         paramSTM = augState((iStateSTMEnd + 1):end);
+        %     end
+        % 
+        %     stateDeriv = self.computeStateDeriv(state);
+        %     if self.includeParamSTM
+        %         [stateSTMDeriv, paramSTMDeriv] = self.computeSTMDerivs(state, stateSTM, paramSTM);
+        %         augStateDeriv = [stateDeriv; stateSTMDeriv; paramSTMDeriv];
+        %     else
+        %         stateSTMDeriv = self.computeSTMDerivs(state, stateSTM);
+        %         augStateDeriv = [stateDeriv; stateSTMDeriv];
+        %     end
+        % end
+        % 
+        % 
+        % function [stateSTMDeriv, paramSTMDeriv] = computeSTMDerivs(self, state, stateSTM, paramSTM)
+        %     nStates = self.projectile.nStates;
+        % 
+        %     stateSTM = reshape(stateSTM, [nStates, nStates]);
+        % 
+        %     stateA = self.computeStateJacobian(state);
+        % 
+        %     stateSTMDeriv = stateA * stateSTM;
+        %     stateSTMDeriv = stateSTMDeriv(:);
+        % 
+        %     if self.includeParamSTM
+        %         nEstimatedParams = self.projectile.nEstimatedParams + self.planet.nEstimatedParams;
+        % 
+        %         paramSTM = reshape(paramSTM, [nStates, nEstimatedParams]);
+        % 
+        %         paramA = self.computeParamJacobian(state);
+        % 
+        %         paramSTMDeriv = stateA * paramSTM + paramA;
+        %         paramSTMDeriv = paramSTMDeriv(:);
+        %     end
+        % end
 
+        
         function augStateDeriv = computeAugStateDeriv(self, augState)
             nStates = self.projectile.nStates;
 
             iStateEnd = nStates;
-            iStateSTMEnd = nStates + nStates ^ 2;
+            iStateSTMEnd = iStateEnd + nStates ^ 2;
 
             state = augState(1:iStateEnd);
             stateSTM = augState((iStateEnd + 1):iStateSTMEnd);
             if self.includeParamSTM
-                paramSTM = augState((iStateSTMEnd + 1):end);
+                nEstimatedParams = self.projectile.nEstimatedParams + self.planet.nEstimatedParams;
+
+                iParamSTMEnd = iStateSTMEnd + nStates * nEstimatedParams;
+
+                paramSTM = augState((iStateSTMEnd + 1):iParamSTMEnd);
+            end
+            if self.includeConsideredDynamicsParamSTM
+                nConsideredDynamicsParams = self.projectile.nConsideredParams + self.planet.nConsideredParams;
+                
+                if self.includeParamSTM
+                    iConsideredDynamicsSTMEnd = iParamSTMEnd + nStates * nConsideredDynamicsParams;
+
+                    consideredDynamicsParamSTM = augState((iParamSTMEnd + 1):iConsideredDynamicsSTMEnd);
+                else
+                    iConsideredDynamicsSTMEnd = iStateSTMEnd + nStates * nConsideredDynamicsParams;
+
+                    consideredDynamicsParamSTM = augState((iStateSTMEnd + 1):iConsideredDynamicsSTMEnd);
+                end
             end
 
             stateDeriv = self.computeStateDeriv(state);
-            if self.includeParamSTM
-                [stateSTMDeriv, paramSTMDeriv] = self.computeSTMDerivs(state, stateSTM, paramSTM);
-                augStateDeriv = [stateDeriv; stateSTMDeriv; paramSTMDeriv];
+            if self.includeConsideredDynamicsParamSTM
+                if self.includeParamSTM
+                    [stateSTMDeriv, paramSTMDeriv, consideredDynamicsParamSTMDeriv] = self.computeSTMDerivs(state, stateSTM, paramSTM, consideredDynamicsParamSTM);
+                    augStateDeriv = [stateDeriv; stateSTMDeriv; paramSTMDeriv; consideredDynamicsParamSTMDeriv];
+                else
+                    [stateSTMDeriv, ~, consideredDynamicsParamSTMDeriv] = self.computeSTMDerivs(state, stateSTM, NaN, consideredDynamicsParamSTM);
+                    augStateDeriv = [stateDeriv; stateSTMDeriv; consideredDynamicsParamSTMDeriv];
+                end
             else
-                stateSTMDeriv = self.computeSTMDerivs(state, stateSTM);
-                augStateDeriv = [stateDeriv; stateSTMDeriv];
+                if self.includeParamSTM
+                    [stateSTMDeriv, paramSTMDeriv] = self.computeSTMDerivs(state, stateSTM, paramSTM);
+                    augStateDeriv = [stateDeriv; stateSTMDeriv; paramSTMDeriv];
+                else
+                    stateSTMDeriv = self.computeSTMDerivs(state, stateSTM);
+                    augStateDeriv = [stateDeriv; stateSTMDeriv];
+                end
             end
         end
+        
 
-
-        function [stateSTMDeriv, paramSTMDeriv] = computeSTMDerivs(self, state, stateSTM, paramSTM)
+        function [stateSTMDeriv, paramSTMDeriv, consideredDynamicsParamSTMDeriv] = computeSTMDerivs(self, state, stateSTM, paramSTM, consideredDynamicsParamSTM)
             nStates = self.projectile.nStates;
 
             stateSTM = reshape(stateSTM, [nStates, nStates]);
@@ -258,6 +334,17 @@ classdef ProjectileDynamics < handle
 
                 paramSTMDeriv = stateA * paramSTM + paramA;
                 paramSTMDeriv = paramSTMDeriv(:);
+            end
+
+            if self.includeConsideredDynamicsParamSTM
+                nConsideredDynamicsParams = self.projectile.nConsideredParams + self.planet.nConsideredParams;
+
+                consideredDynamicsParamSTM = reshape(consideredDynamicsParamSTM, [nStates, nConsideredDynamicsParams]);
+
+                consideredDynamicsParamA = self.computeConsideredDynamicsParamJacobian(state);
+
+                consideredDynamicsParamSTMDeriv = stateA * consideredDynamicsParamSTM + consideredDynamicsParamA;
+                consideredDynamicsParamSTMDeriv = consideredDynamicsParamSTMDeriv(:);
             end
         end
 
@@ -373,6 +460,59 @@ classdef ProjectileDynamics < handle
         end
 
 
+        function A = computeConsideredDynamicsParamJacobian(self, state)
+            nStates = self.projectile.nStates;
+            nConsideredProjectileParams = self.projectile.nConsideredParams;
+            nConsideredPlanetParams = self.planet.nConsideredParams;
+            nConsideredParams = nConsideredProjectileParams + nConsideredPlanetParams;
+
+            A = zeros(nStates, nConsideredParams);
+            
+            pertFactor = Settings.DEFAULT_JACOBIAN_PERT_FACTOR;
+            for i = 1:nConsideredProjectileParams
+                paramIdx = self.projectile.consideredParamIdxs(i);
+                param = self.projectile.params(paramIdx);
+
+                delta = pertFactor * (1 + abs(param));
+
+                paramPlus = param + delta;
+                self.projectile.params(paramIdx) = paramPlus;
+
+                stateDerivPlus = self.computeStateDeriv(state);
+
+                paramMinus = param - delta;
+                self.projectile.params(paramIdx) = paramMinus;
+
+                stateDerivMinus = self.computeStateDeriv(state);
+
+                A(:, i) = (stateDerivPlus - stateDerivMinus) / (2 * delta);
+
+                self.projectile.params(paramIdx) = param;
+            end
+
+            for i = 1:nConsideredPlanetParams
+                paramIdx = self.planet.consideredParamIdxs(i);
+                param = self.planet.params(paramIdx);
+
+                delta = pertFactor * (1 + abs(param));
+
+                paramPlus = param + delta;
+                self.planet.params(paramIdx) = paramPlus;
+
+                stateDerivPlus = self.computeStateDeriv(state);
+
+                paramMinus = param - delta;
+                self.planet.params(paramIdx) = paramMinus;
+
+                stateDerivMinus = self.computeStateDeriv(state);
+
+                A(:, nConsideredProjectileParams + i) = (stateDerivPlus - stateDerivMinus) / (2 * delta);
+
+                self.planet.params(paramIdx) = param;
+            end
+        end
+
+
         % Setters ==================================================================================
 
         function set.projectile(self, projectile)
@@ -396,6 +536,14 @@ classdef ProjectileDynamics < handle
                 self.includeParamSTM = Validator.validateType(includeParamSTM, "logical");
             else
                 self.includeParamSTM = includeParamSTM;
+            end
+        end
+
+        function set.includeConsideredDynamicsParamSTM(self, includeConsideredDynamicsParamSTM)
+            if Settings.VALIDATE_FLAG
+                self.includeConsideredDynamicsParamSTM = Validator.validateType(includeConsideredDynamicsParamSTM, "logical");
+            else
+                self.includeConsideredDynamicsParamSTM = includeConsideredDynamicsParamSTM;
             end
         end
     end

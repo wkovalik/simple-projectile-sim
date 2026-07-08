@@ -14,6 +14,9 @@ classdef Projectile < handle
         estimatedParams = [];
         estimatedParamCovar = [];
 
+        consideredParams = [];
+        consideredParamCovar = [];
+
         aeroModel
     end
 
@@ -22,6 +25,9 @@ classdef Projectile < handle
 
         nEstimatedParams = 0;
         estimatedParamIdxs = [];
+
+        nConsideredParams = 0;
+        consideredParamIdxs = [];
         
         dIdx = 0;
         SIdx = 0;
@@ -147,26 +153,26 @@ classdef Projectile < handle
         qIdx = 11;
         rIdx = 12;
 
-        DEFAULT_D = 0.035;
-        DEFAULT_S = (pi / 4) * 0.035 ^ 2;
-        DEFAULT_NFINS = 0;
+        DEFAULT_D = 0.02999232;
+        DEFAULT_S = (pi / 4) * 0.02999232 ^ 2;
+        DEFAULT_NFINS = 4;
         DEFAULT_DELTAFINS = 0;
 
-        DEFAULT_M = 5.509;
-        DEFAULT_IXX = 0.000869;
-        DEFAULT_IYY = 0.2448;
-        DEFAULT_IZZ = 0.2448;
+        DEFAULT_M = 1.58885397;
+        DEFAULT_IXX = 0.000192309;
+        DEFAULT_IYY = 0.00986927;
+        DEFAULT_IZZ = 0.00986927;
         DEFAULT_IXY = 0;
         DEFAULT_IXZ = 0;
         DEFAULT_IYZ = 0;
 
-        DEFAULT_CX0 = 8.37E-01;
+        DEFAULT_CX0 = -0.472;
         DEFAULT_CX0_TABLE_X = [0; 5];
-        DEFAULT_CX0_TABLE_Y = [8.37E-01; 8.37E-01];
+        DEFAULT_CX0_TABLE_Y = [-0.472; -0.472];
 
-        DEFAULT_CX2 = 9.29E+00;
+        DEFAULT_CX2 = -3.32;
         DEFAULT_CX2_TABLE_X = [0; 5];
-        DEFAULT_CX2_TABLE_Y = [9.29E+00; 9.29E+00];
+        DEFAULT_CX2_TABLE_Y = [-3.32; -3.32];
 
         DEFAULT_CY0 = 0;
         DEFAULT_CY0_TABLE_X = [0; 5];
@@ -176,13 +182,13 @@ classdef Projectile < handle
         DEFAULT_CZ0_TABLE_X = [0; 5];
         DEFAULT_CZ0_TABLE_Y = [0; 0];
 
-        DEFAULT_CNalpha0 = 6.71E+00;
+        DEFAULT_CNalpha0 = 13.71;
         DEFAULT_CNalpha0_TABLE_X = [0; 5];
-        DEFAULT_CNalpha0_TABLE_Y = [6.71E+00; 6.71E+00];
+        DEFAULT_CNalpha0_TABLE_Y = [13.71; 13.71];
 
-        DEFAULT_CNalpha2 = 1.21E+03;
+        DEFAULT_CNalpha2 = 0;
         DEFAULT_CNalpha2_TABLE_X = [0; 5];
-        DEFAULT_CNalpha2_TABLE_Y = [1.21E+03; 1.21E+03];
+        DEFAULT_CNalpha2_TABLE_Y = [0; 0];
 
         DEFAULT_CNpalpha0 = 0;
         DEFAULT_CNpalpha0_TABLE_X = [0; 5];
@@ -196,9 +202,9 @@ classdef Projectile < handle
         DEFAULT_Cl0_TABLE_X = [0; 5];
         DEFAULT_Cl0_TABLE_Y = [0; 0];
 
-        DEFAULT_Clp = -3.32E+00;
+        DEFAULT_Clp = -4.5;
         DEFAULT_Clp_TABLE_X = [0; 5];
-        DEFAULT_Clp_TABLE_Y = [-3.32E+00; -3.32E+00];
+        DEFAULT_Clp_TABLE_Y = [-4.5; -4.5];
 
         DEFAULT_Cldelta = 0;
         DEFAULT_Cldelta_TABLE_X = [0; 5];
@@ -212,13 +218,13 @@ classdef Projectile < handle
         DEFAULT_Cn0_TABLE_X = [0; 5];
         DEFAULT_Cn0_TABLE_Y = [0; 0];
 
-        DEFAULT_CMalpha0 = 2.09E+01;
+        DEFAULT_CMalpha0 = -22.01381098;
         DEFAULT_CMalpha0_TABLE_X = [0; 5];
-        DEFAULT_CMalpha0_TABLE_Y = [2.09E+01; 2.09E+01];
+        DEFAULT_CMalpha0_TABLE_Y = [-22.01381098; -22.01381098];
 
-        DEFAULT_CMalpha2 = -3.69E+03;
+        DEFAULT_CMalpha2 = 0;
         DEFAULT_CMalpha2_TABLE_X = [0; 5];
-        DEFAULT_CMalpha2_TABLE_Y = [-3.69E+03; -3.69E+03];
+        DEFAULT_CMalpha2_TABLE_Y = [0; 0];
 
         DEFAULT_CMpalpha0 = 0;
         DEFAULT_CMpalpha0_TABLE_X = [0; 5];
@@ -228,9 +234,9 @@ classdef Projectile < handle
         DEFAULT_CMpalpha2_TABLE_X = [0; 5];
         DEFAULT_CMpalpha2_TABLE_Y = [0; 0];
 
-        DEFAULT_CMq = -1.69E+04;
+        DEFAULT_CMq = -207.1;
         DEFAULT_CMq_TABLE_X = [0; 5];
-        DEFAULT_CMq_TABLE_Y = [-1.69E+04; -1.69E+04];
+        DEFAULT_CMq_TABLE_Y = [-207.1; -207.1];
 
         VALID_AERO_MODELS = ["constant", "table"];
     end
@@ -275,6 +281,7 @@ classdef Projectile < handle
             self.updateModels();
             self.updateParams();
             self.updateEstimatedParams();
+            self.updateConsideredParams();
         end
 
 
@@ -297,23 +304,23 @@ classdef Projectile < handle
                     
                     if ~self.isAeroModelInit
                         self.paramDefs.CX0       = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CX2       = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CY0       = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CZ0       = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CNalpha0  = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CNalpha2  = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CNpalpha0 = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CNpalpha2 = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.Cl0       = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.Clp       = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.Cldelta   = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.Cm0       = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.Cn0       = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CMalpha0  = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CMalpha2  = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CMpalpha0 = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CMpalpha2 = ParamDef(self.DEFAULT_CX0);
-                        self.paramDefs.CMq       = ParamDef(self.DEFAULT_CX0);
+                        self.paramDefs.CX2       = ParamDef(self.DEFAULT_CX2);
+                        self.paramDefs.CY0       = ParamDef(self.DEFAULT_CY0);
+                        self.paramDefs.CZ0       = ParamDef(self.DEFAULT_CZ0);
+                        self.paramDefs.CNalpha0  = ParamDef(self.DEFAULT_CNalpha0);
+                        self.paramDefs.CNalpha2  = ParamDef(self.DEFAULT_CNalpha2);
+                        self.paramDefs.CNpalpha0 = ParamDef(self.DEFAULT_CNpalpha0);
+                        self.paramDefs.CNpalpha2 = ParamDef(self.DEFAULT_CNpalpha2);
+                        self.paramDefs.Cl0       = ParamDef(self.DEFAULT_Cl0);
+                        self.paramDefs.Clp       = ParamDef(self.DEFAULT_Clp);
+                        self.paramDefs.Cldelta   = ParamDef(self.DEFAULT_Cldelta);
+                        self.paramDefs.Cm0       = ParamDef(self.DEFAULT_Cm0);
+                        self.paramDefs.Cn0       = ParamDef(self.DEFAULT_Cn0);
+                        self.paramDefs.CMalpha0  = ParamDef(self.DEFAULT_CMalpha0);
+                        self.paramDefs.CMalpha2  = ParamDef(self.DEFAULT_CMalpha2);
+                        self.paramDefs.CMpalpha0 = ParamDef(self.DEFAULT_CMpalpha0);
+                        self.paramDefs.CMpalpha2 = ParamDef(self.DEFAULT_CMpalpha2);
+                        self.paramDefs.CMq       = ParamDef(self.DEFAULT_CMq);
                     end
 
                 case "table"
@@ -371,6 +378,91 @@ classdef Projectile < handle
             self.CX0Table_CX0Idx = 0;
             self.CX0Table_Len = 0;
 
+            self.CX2Idx = 0;
+            self.CX2Table_Mach0Idx = 0;
+            self.CX2Table_CX2Idx = 0;
+            self.CX2Table_Len = 0;
+    
+            self.CY0Idx = 0;
+            self.CY0Table_Mach0Idx = 0;
+            self.CY0Table_CY0Idx = 0;
+            self.CY0Table_Len = 0;
+    
+            self.CZ0Idx = 0;
+            self.CZ0Table_Mach0Idx = 0;
+            self.CZ0Table_CZ0Idx = 0;
+            self.CZ0Table_Len = 0;
+    
+            self.CNalpha0Idx = 0;
+            self.CNalpha0Table_Mach0Idx = 0;
+            self.CNalpha0Table_CNalpha0Idx = 0;
+            self.CNalpha0Table_Len = 0;
+    
+            self.CNalpha2Idx = 0;
+            self.CNalpha2Table_Mach0Idx = 0;
+            self.CNalpha2Table_CNalpha2Idx = 0;
+            self.CNalpha2Table_Len = 0;
+    
+            self.CNpalpha0Idx = 0;
+            self.CNpalpha0Table_Mach0Idx = 0;
+            self.CNpalpha0Table_CNpalpha0Idx = 0;
+            self.CNpalpha0Table_Len = 0;
+    
+            self.CNpalpha2Idx = 0;
+            self.CNpalpha2Table_Mach0Idx = 0;
+            self.CNpalpha2Table_CNpalpha2Idx = 0;
+            self.CNpalpha2Table_Len = 0;
+    
+            self.Cl0Idx = 0;
+            self.Cl0Table_Mach0Idx = 0;
+            self.Cl0Table_Cl0Idx = 0;
+            self.Cl0Table_Len = 0;
+    
+            self.ClpIdx = 0;
+            self.ClpTable_Mach0Idx = 0;
+            self.ClpTable_ClpIdx = 0;
+            self.ClpTable_Len = 0;
+    
+            self.CldeltaIdx = 0;
+            self.CldeltaTable_Mach0Idx = 0;
+            self.CldeltaTable_CldeltaIdx = 0;
+            self.CldeltaTable_Len = 0;
+    
+            self.Cm0Idx = 0;
+            self.Cm0Table_Mach0Idx = 0;
+            self.Cm0Table_Cm0Idx = 0;
+            self.Cm0Table_Len = 0;
+    
+            self.Cn0Idx = 0;
+            self.Cn0Table_Mach0Idx = 0;
+            self.Cn0Table_Cn0Idx = 0;
+            self.Cn0Table_Len = 0;
+    
+            self.CMalpha0Idx = 0;
+            self.CMalpha0Table_Mach0Idx = 0;
+            self.CMalpha0Table_CMalpha0Idx = 0;
+            self.CMalpha0Table_Len = 0;
+    
+            self.CMalpha2Idx = 0;
+            self.CMalpha2Table_Mach0Idx = 0;
+            self.CMalpha2Table_CMalpha2Idx = 0;
+            self.CMalpha2Table_Len = 0;
+    
+            self.CMpalpha0Idx = 0;
+            self.CMpalpha0Table_Mach0Idx = 0;
+            self.CMpalpha0Table_CMpalpha0Idx = 0;
+            self.CMpalpha0Table_Len = 0;
+    
+            self.CMpalpha2Idx = 0;
+            self.CMpalpha2Table_Mach0Idx = 0;
+            self.CMpalpha2Table_CMpalpha2Idx = 0;
+            self.CMpalpha2Table_Len = 0;
+    
+            self.CMqIdx = 0;
+            self.CMqTable_Mach0Idx = 0;
+            self.CMqTable_CMqIdx = 0;
+            self.CMqTable_Len = 0;
+
             % d
             self.dIdx = self.nParams + 1;
             self.params = [self.params; self.paramDefs.d.value];
@@ -380,7 +472,7 @@ classdef Projectile < handle
             self.params = [self.params; self.paramDefs.S.value];
 
             % nFins
-            self.deltaFinsIdx = self.nParams + 1;
+            self.nFinsIdx = self.nParams + 1;
             self.params = [self.params; self.paramDefs.nFins.value];
 
             % deltaFins
@@ -1021,6 +1113,377 @@ classdef Projectile < handle
         end
 
 
+        function updateConsideredParams(self)
+            self.consideredParams = [];
+            self.consideredParamCovar = [];
+            self.consideredParamIdxs = [];
+            
+            % d
+            if self.paramDefs.d.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.d.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.d.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.dIdx];
+            end
+
+            % S
+            if self.paramDefs.S.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.S.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.S.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.SIdx];
+            end
+
+            % nFins
+            if self.paramDefs.nFins.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.nFins.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.nFins.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.nFinsIdx];
+            end
+
+            % deltaFins
+            if self.paramDefs.deltaFins.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.deltaFins.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.deltaFins.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.deltaFinsIdx];
+            end
+
+            % m
+            if self.paramDefs.m.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.m.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.m.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.mIdx];
+            end
+
+            % I
+            if self.paramDefs.Ixx.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.Ixx.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Ixx.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.IxxIdx];
+            end
+
+            if self.paramDefs.Iyy.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.Iyy.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Iyy.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.IyyIdx];
+            end
+
+            if self.paramDefs.Izz.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.Izz.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Izz.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.IzzIdx];
+            end
+
+            if self.paramDefs.Ixy.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.Ixy.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Ixy.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.IxyIdx];
+            end
+
+            if self.paramDefs.Ixz.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.Ixz.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Ixz.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.IxzIdx];
+            end
+
+            if self.paramDefs.Iyz.isConsidered
+                self.consideredParams = [self.consideredParams; self.paramDefs.Iyz.value];
+                self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Iyz.covar);
+                self.consideredParamIdxs = [self.consideredParamIdxs; self.IyzIdx];
+            end
+            
+            switch self.aeroModel
+                case "constant"
+                    % CX0
+                    if self.paramDefs.CX0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CX0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CX0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CX0Idx];
+                    end
+
+                    % CX2
+                    if self.paramDefs.CX2.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CX2.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CX2.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CX2Idx];
+                    end
+
+                    % CY0
+                    if self.paramDefs.CY0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CY0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CY0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CY0Idx];
+                    end
+
+                    % CZ0
+                    if self.paramDefs.CZ0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CZ0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CZ0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CZ0Idx];
+                    end
+
+                    % CNalpha0
+                    if self.paramDefs.CNalpha0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CNalpha0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CNalpha0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CNalpha0Idx];
+                    end
+
+                    % CNalpha2
+                    if self.paramDefs.CNalpha2.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CNalpha2.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CNalpha2.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CNalpha2Idx];
+                    end
+
+                    % CNpalpha0
+                    if self.paramDefs.CNpalpha0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CNpalpha0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CNpalpha0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CNpalpha0Idx];
+                    end
+
+                    % CNpalpha2
+                    if self.paramDefs.CNpalpha2.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CNpalpha2.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CNpalpha2.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CNpalpha2Idx];
+                    end
+
+                    % Cl0
+                    if self.paramDefs.Cl0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.Cl0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cl0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.Cl0Idx];
+                    end
+
+                    % Clp
+                    if self.paramDefs.Clp.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.Clp.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Clp.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.ClpIdx];
+                    end
+
+                    % Cldelta
+                    if self.paramDefs.Cldelta.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.Cldelta.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cldelta.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CldeltaIdx];
+                    end
+
+                    % Cm0
+                    if self.paramDefs.Cm0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.Cm0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cm0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.Cm0Idx];
+                    end
+
+                    % Cn0
+                    if self.paramDefs.Cn0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.Cn0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cn0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.Cn0Idx];
+                    end
+
+                    % CMalpha0
+                    if self.paramDefs.CMalpha0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CMalpha0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMalpha0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CMalpha0Idx];
+                    end
+
+                    % CMalpha2
+                    if self.paramDefs.CMalpha2.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CMalpha2.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMalpha2.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CMalpha2Idx];
+                    end
+
+                    % CMpalpha0
+                    if self.paramDefs.CMpalpha0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CMpalpha0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMpalpha0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CMpalpha0Idx];
+                    end
+
+                    % CMpalpha2
+                    if self.paramDefs.CMpalpha2.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CMpalpha2.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMpalpha2.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CMpalpha2Idx];
+                    end
+
+                    % CMq
+                    if self.paramDefs.CMq.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.CMq.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMq.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.CMqIdx];
+                    end
+
+                case "table"
+                    % CX0
+                    for i = 1:length(self.paramDefs.CX0.yValues)
+                        if self.paramDefs.CX0.yIsEstimated(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CX0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CX0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CX0Table_CX0Idx + (i - 1)];
+                        end
+                    end
+
+                    % CX2
+                    for i = 1:length(self.paramDefs.CX2.yValues)
+                        if self.paramDefs.CX2.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CX2.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CX2.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CX2Table_CX2Idx + (i - 1)];
+                        end
+                    end
+
+                    % CY0
+                    for i = 1:length(self.paramDefs.CY0.yValues)
+                        if self.paramDefs.CY0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CY0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CY0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CY0Table_CY0Idx + (i - 1)];
+                        end
+                    end
+
+                    % CZ0
+                    for i = 1:length(self.paramDefs.CZ0.yValues)
+                        if self.paramDefs.CZ0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CZ0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CZ0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CZ0Table_CZ0Idx + (i - 1)];
+                        end
+                    end
+
+                    % CNalpha0
+                    for i = 1:length(self.paramDefs.CNalpha0.yValues)
+                        if self.paramDefs.CNalpha0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CNalpha0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CNalpha0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CNalpha0Table_CNalpha0Idx + (i - 1)];
+                        end
+                    end
+
+                    % CNalpha2
+                    for i = 1:length(self.paramDefs.CNalpha2.yValues)
+                        if self.paramDefs.CNalpha2.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CNalpha2.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CNalpha2.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CNalpha2Table_CNalpha2Idx + (i - 1)];
+                        end
+                    end
+
+                    % CNpalpha0
+                    for i = 1:length(self.paramDefs.CNpalpha0.yValues)
+                        if self.paramDefs.CNpalpha0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CNpalpha0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CNpalpha0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CNpalpha0Table_CNpalpha0Idx + (i - 1)];
+                        end
+                    end
+
+                    % CNpalpha2
+                    for i = 1:length(self.paramDefs.CNpalpha2.yValues)
+                        if self.paramDefs.CNpalpha2.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CNpalpha2.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CNpalpha2.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CNpalpha2Table_CNpalpha2Idx + (i - 1)];
+                        end
+                    end
+
+                    % Cl0
+                    for i = 1:length(self.paramDefs.Cl0.yValues)
+                        if self.paramDefs.Cl0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.Cl0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cl0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.Cl0Table_Cl0Idx + (i - 1)];
+                        end
+                    end
+
+                    % Clp
+                    for i = 1:length(self.paramDefs.Clp.yValues)
+                        if self.paramDefs.Clp.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.Clp.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Clp.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.ClpTable_ClpIdx + (i - 1)];
+                        end
+                    end
+
+                    % Cldelta
+                    for i = 1:length(self.paramDefs.Cldelta.yValues)
+                        if self.paramDefs.Cldelta.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.Cldelta.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cldelta.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CldeltaTable_CldeltaIdx + (i - 1)];
+                        end
+                    end
+
+                    % Cm0
+                    for i = 1:length(self.paramDefs.Cm0.yValues)
+                        if self.paramDefs.Cm0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.Cm0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cm0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.Cm0Table_Cm0Idx + (i - 1)];
+                        end
+                    end
+
+                    % Cn0
+                    for i = 1:length(self.paramDefs.Cn0.yValues)
+                        if self.paramDefs.Cn0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.Cn0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.Cn0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.Cn0Table_Cn0Idx + (i - 1)];
+                        end
+                    end
+
+                    % CMalpha0
+                    for i = 1:length(self.paramDefs.CMalpha0.yValues)
+                        if self.paramDefs.CMalpha0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CMalpha0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMalpha0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CMalpha0Table_CMalpha0Idx + (i - 1)];
+                        end
+                    end
+
+                    % CMalpha2
+                    for i = 1:length(self.paramDefs.CMalpha2.yValues)
+                        if self.paramDefs.CMalpha2.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CMalpha2.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMalpha2.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CMalpha2Table_CMalpha2Idx + (i - 1)];
+                        end
+                    end
+
+                    % CMpalpha0
+                    for i = 1:length(self.paramDefs.CMpalpha0.yValues)
+                        if self.paramDefs.CMpalpha0.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CMpalpha0.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMpalpha0.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CMpalpha0Table_CMpalpha0Idx + (i - 1)];
+                        end
+                    end
+
+                    % CMpalpha2
+                    for i = 1:length(self.paramDefs.CMpalpha2.yValues)
+                        if self.paramDefs.CMpalpha2.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CMpalpha2.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMpalpha2.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CMpalpha2Table_CMpalpha2Idx + (i - 1)];
+                        end
+                    end
+
+                    % CMq
+                    for i = 1:length(self.paramDefs.CMq.yValues)
+                        if self.paramDefs.CMq.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.CMq.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.CMq.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.CMqTable_CMqIdx + (i - 1)];
+                        end
+                    end
+            end
+        end
+
+
         function readPropsFromFile(self, filePath)
             try
                 props = readmatrix(filePath);
@@ -1119,151 +1582,175 @@ classdef Projectile < handle
 
         function [CX0, CX2, CY0, CZ0, CNalpha0, CNalpha2, CNpalpha0, CNpalpha2, ...
                   Cl0, Clp, Cldelta, Cm0, Cn0, CMalpha0, CMalpha2, CMpalpha0, CMpalpha2, CMq] = tableAeroModel(self, mach)
+            
+            minMach = self.params(self.CX0Table_Mach0Idx);
 
-            dmach = self.params(self.CX0Table_Mach0Idx + 1) - self.params(self.CX0Table_Mach0Idx);  % TODO: Non-uniform table
+            if mach < minMach
+                CX0       = self.params(self.CX0Table_CX0Idx);
+                CX2       = self.params(self.CX2Table_CX2Idx);
+                CY0       = self.params(self.CY0Table_CY0Idx);
+                CZ0       = self.params(self.CZ0Table_CZ0Idx);
+                CNalpha0  = self.params(self.CNalpha0Table_CNalpha0Idx);
+                CNalpha2  = self.params(self.CNalpha2Table_CNalpha2Idx);
+                CNpalpha0 = self.params(self.CNpalpha0Table_CNpalpha0Idx);
+                CNpalpha2 = self.params(self.CNpalpha2Table_CNpalpha2Idx);
+                Cl0       = self.params(self.Cl0Table_Cl0Idx);
+                Clp       = self.params(self.ClpTable_ClpIdx);
+                Cldelta   = self.params(self.CldeltaTable_CldeltaIdx);
+                Cm0       = self.params(self.Cm0Table_Cm0Idx);
+                Cn0       = self.params(self.Cn0Table_Cn0Idx);
+                CMalpha0  = self.params(self.CMalpha0Table_CMalpha0Idx);
+                CMalpha2  = self.params(self.CMalpha2Table_CMalpha2Idx);
+                CMpalpha0 = self.params(self.CMpalpha0Table_CMpalpha0Idx);
+                CMpalpha2 = self.params(self.CMpalpha2Table_CMpalpha2Idx);
+                CMq       = self.params(self.CMqTable_CMqIdx);
 
-            CX0 = 0;
-            for i = 0:(self.CX0Table_Len - 1)
-                mach_i = self.params(self.CX0Table_Mach0Idx + i);
-                CX0_i = self.params(self.CX0Table_CX0Idx + i);
-
-                CX0 = CX0 + CX0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CX2 = 0;
-            for i = 0:(self.CX2Table_Len - 1)
-                mach_i = self.params(self.CX2Table_Mach0Idx + i);
-                CX2_i = self.params(self.CX2Table_CX2Idx + i);
-
-                CX2 = CX2 + CX2_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CY0 = 0;
-            for i = 0:(self.CY0Table_Len - 1)
-                mach_i = self.params(self.CY0Table_Mach0Idx + i);
-                CY0_i = self.params(self.CY0Table_CY0Idx + i);
-
-                CY0 = CY0 + CY0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CZ0 = 0;
-            for i = 0:(self.CZ0Table_Len - 1)
-                mach_i = self.params(self.CZ0Table_Mach0Idx + i);
-                CZ0_i = self.params(self.CZ0Table_CZ0Idx + i);
-
-                CZ0 = CZ0 + CZ0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CNalpha0 = 0;
-            for i = 0:(self.CNalpha0Table_Len - 1)
-                mach_i = self.params(self.CNalpha0Table_Mach0Idx + i);
-                CNalpha0_i = self.params(self.CNalpha0Table_CNalpha0Idx + i);
-
-                CNalpha0 = CNalpha0 + CNalpha0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CNalpha2 = 0;
-            for i = 0:(self.CNalpha2Table_Len - 1)
-                mach_i = self.params(self.CNalpha2Table_Mach0Idx + i);
-                CNalpha2_i = self.params(self.CNalpha2Table_CNalpha2Idx + i);
-
-                CNalpha2 = CNalpha2 + CNalpha2_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CNpalpha0 = 0;
-            for i = 0:(self.CNpalpha0Table_Len - 1)
-                mach_i = self.params(self.CNpalpha0Table_Mach0Idx + i);
-                CNpalpha0_i = self.params(self.CNpalpha0Table_CNpalpha0Idx + i);
-
-                CNpalpha0 = CNpalpha0 + CNpalpha0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CNpalpha2 = 0;
-            for i = 0:(self.CNpalpha2Table_Len - 1)
-                mach_i = self.params(self.CNpalpha2Table_Mach0Idx + i);
-                CNpalpha2_i = self.params(self.CNpalpha2Table_CNpalpha2Idx + i);
-
-                CNpalpha2 = CNpalpha2 + CNpalpha2_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            Cl0 = 0;
-            for i = 0:(self.Cl0Table_Len - 1)
-                mach_i = self.params(self.Cl0Table_Mach0Idx + i);
-                Cl0_i = self.params(self.Cl0Table_Cl0Idx + i);
-
-                Cl0 = Cl0 + Cl0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            Clp = 0;
-            for i = 0:(self.ClpTable_Len - 1)
-                mach_i = self.params(self.ClpTable_Mach0Idx + i);
-                Clp_i = self.params(self.ClpTable_ClpIdx + i);
-
-                Clp = Clp + Clp_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            Cldelta = 0;
-            for i = 0:(self.CldeltaTable_Len - 1)
-                mach_i = self.params(self.CldeltaTable_Mach0Idx + i);
-                Cldelta_i = self.params(self.CldeltaTable_CldeltaIdx + i);
-
-                Cldelta = Cldelta + Cldelta_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            Cm0 = 0;
-            for i = 0:(self.Cm0Table_Len - 1)
-                mach_i = self.params(self.Cm0Table_Mach0Idx + i);
-                Cm0_i = self.params(self.Cm0Table_Cm0Idx + i);
-
-                Cm0 = Cm0 + Cm0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            Cn0 = 0;
-            for i = 0:(self.Cn0Table_Len - 1)
-                mach_i = self.params(self.Cn0Table_Mach0Idx + i);
-                Cn0_i = self.params(self.Cn0Table_Cn0Idx + i);
-
-                Cn0 = Cn0 + Cn0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CMalpha0 = 0;
-            for i = 0:(self.CMalpha0Table_Len - 1)
-                mach_i = self.params(self.CMalpha0Table_Mach0Idx + i);
-                CMalpha0_i = self.params(self.CMalpha0Table_CMalpha0Idx + i);
-
-                CMalpha0 = CMalpha0 + CMalpha0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CMalpha2 = 0;
-            for i = 0:(self.CMalpha2Table_Len - 1)
-                mach_i = self.params(self.CMalpha2Table_Mach0Idx + i);
-                CMalpha2_i = self.params(self.CMalpha2Table_CMalpha2Idx + i);
-
-                CMalpha2 = CMalpha2 + CMalpha2_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CMpalpha0 = 0;
-            for i = 0:(self.CMpalpha0Table_Len - 1)
-                mach_i = self.params(self.CMpalpha0Table_Mach0Idx + i);
-                CMpalpha0_i = self.params(self.CMpalpha0Table_CMpalpha0Idx + i);
-
-                CMpalpha0 = CMpalpha0 + CMpalpha0_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CMpalpha2 = 0;
-            for i = 0:(self.CMpalpha2Table_Len - 1)
-                mach_i = self.params(self.CMpalpha2Table_Mach0Idx + i);
-                CMpalpha2_i = self.params(self.CMpalpha2Table_CMpalpha2Idx + i);
-
-                CMpalpha2 = CMpalpha2 + CMpalpha2_i * self.linearKernel((mach - mach_i) / dmach);
-            end
-
-            CMq = 0;
-            for i = 0:(self.CMqTable_Len - 1)
-                mach_i = self.params(self.CMqTable_Mach0Idx + i);
-                CMq_i = self.params(self.CMqTable_CMqIdx + i);
-
-                CMq = CMq + CMq_i * self.linearKernel((mach - mach_i) / dmach);
+            else
+                dmach = self.params(self.CX0Table_Mach0Idx + 1) - self.params(self.CX0Table_Mach0Idx);  % TODO: Non-uniform table
+    
+                CX0 = 0;
+                for i = 0:(self.CX0Table_Len - 1)
+                    mach_i = self.params(self.CX0Table_Mach0Idx + i);
+                    CX0_i = self.params(self.CX0Table_CX0Idx + i);
+    
+                    CX0 = CX0 + CX0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CX2 = 0;
+                for i = 0:(self.CX2Table_Len - 1)
+                    mach_i = self.params(self.CX2Table_Mach0Idx + i);
+                    CX2_i = self.params(self.CX2Table_CX2Idx + i);
+    
+                    CX2 = CX2 + CX2_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CY0 = 0;
+                for i = 0:(self.CY0Table_Len - 1)
+                    mach_i = self.params(self.CY0Table_Mach0Idx + i);
+                    CY0_i = self.params(self.CY0Table_CY0Idx + i);
+    
+                    CY0 = CY0 + CY0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CZ0 = 0;
+                for i = 0:(self.CZ0Table_Len - 1)
+                    mach_i = self.params(self.CZ0Table_Mach0Idx + i);
+                    CZ0_i = self.params(self.CZ0Table_CZ0Idx + i);
+    
+                    CZ0 = CZ0 + CZ0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CNalpha0 = 0;
+                for i = 0:(self.CNalpha0Table_Len - 1)
+                    mach_i = self.params(self.CNalpha0Table_Mach0Idx + i);
+                    CNalpha0_i = self.params(self.CNalpha0Table_CNalpha0Idx + i);
+    
+                    CNalpha0 = CNalpha0 + CNalpha0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CNalpha2 = 0;
+                for i = 0:(self.CNalpha2Table_Len - 1)
+                    mach_i = self.params(self.CNalpha2Table_Mach0Idx + i);
+                    CNalpha2_i = self.params(self.CNalpha2Table_CNalpha2Idx + i);
+    
+                    CNalpha2 = CNalpha2 + CNalpha2_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CNpalpha0 = 0;
+                for i = 0:(self.CNpalpha0Table_Len - 1)
+                    mach_i = self.params(self.CNpalpha0Table_Mach0Idx + i);
+                    CNpalpha0_i = self.params(self.CNpalpha0Table_CNpalpha0Idx + i);
+    
+                    CNpalpha0 = CNpalpha0 + CNpalpha0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CNpalpha2 = 0;
+                for i = 0:(self.CNpalpha2Table_Len - 1)
+                    mach_i = self.params(self.CNpalpha2Table_Mach0Idx + i);
+                    CNpalpha2_i = self.params(self.CNpalpha2Table_CNpalpha2Idx + i);
+    
+                    CNpalpha2 = CNpalpha2 + CNpalpha2_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                Cl0 = 0;
+                for i = 0:(self.Cl0Table_Len - 1)
+                    mach_i = self.params(self.Cl0Table_Mach0Idx + i);
+                    Cl0_i = self.params(self.Cl0Table_Cl0Idx + i);
+    
+                    Cl0 = Cl0 + Cl0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                Clp = 0;
+                for i = 0:(self.ClpTable_Len - 1)
+                    mach_i = self.params(self.ClpTable_Mach0Idx + i);
+                    Clp_i = self.params(self.ClpTable_ClpIdx + i);
+    
+                    Clp = Clp + Clp_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                Cldelta = 0;
+                for i = 0:(self.CldeltaTable_Len - 1)
+                    mach_i = self.params(self.CldeltaTable_Mach0Idx + i);
+                    Cldelta_i = self.params(self.CldeltaTable_CldeltaIdx + i);
+    
+                    Cldelta = Cldelta + Cldelta_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                Cm0 = 0;
+                for i = 0:(self.Cm0Table_Len - 1)
+                    mach_i = self.params(self.Cm0Table_Mach0Idx + i);
+                    Cm0_i = self.params(self.Cm0Table_Cm0Idx + i);
+    
+                    Cm0 = Cm0 + Cm0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                Cn0 = 0;
+                for i = 0:(self.Cn0Table_Len - 1)
+                    mach_i = self.params(self.Cn0Table_Mach0Idx + i);
+                    Cn0_i = self.params(self.Cn0Table_Cn0Idx + i);
+    
+                    Cn0 = Cn0 + Cn0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CMalpha0 = 0;
+                for i = 0:(self.CMalpha0Table_Len - 1)
+                    mach_i = self.params(self.CMalpha0Table_Mach0Idx + i);
+                    CMalpha0_i = self.params(self.CMalpha0Table_CMalpha0Idx + i);
+    
+                    CMalpha0 = CMalpha0 + CMalpha0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CMalpha2 = 0;
+                for i = 0:(self.CMalpha2Table_Len - 1)
+                    mach_i = self.params(self.CMalpha2Table_Mach0Idx + i);
+                    CMalpha2_i = self.params(self.CMalpha2Table_CMalpha2Idx + i);
+    
+                    CMalpha2 = CMalpha2 + CMalpha2_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CMpalpha0 = 0;
+                for i = 0:(self.CMpalpha0Table_Len - 1)
+                    mach_i = self.params(self.CMpalpha0Table_Mach0Idx + i);
+                    CMpalpha0_i = self.params(self.CMpalpha0Table_CMpalpha0Idx + i);
+    
+                    CMpalpha0 = CMpalpha0 + CMpalpha0_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CMpalpha2 = 0;
+                for i = 0:(self.CMpalpha2Table_Len - 1)
+                    mach_i = self.params(self.CMpalpha2Table_Mach0Idx + i);
+                    CMpalpha2_i = self.params(self.CMpalpha2Table_CMpalpha2Idx + i);
+    
+                    CMpalpha2 = CMpalpha2 + CMpalpha2_i * self.linearKernel((mach - mach_i) / dmach);
+                end
+    
+                CMq = 0;
+                for i = 0:(self.CMqTable_Len - 1)
+                    mach_i = self.params(self.CMqTable_Mach0Idx + i);
+                    CMq_i = self.params(self.CMqTable_CMqIdx + i);
+    
+                    CMq = CMq + CMq_i * self.linearKernel((mach - mach_i) / dmach);
+                end
             end
         end
         
@@ -1349,6 +1836,33 @@ classdef Projectile < handle
                 self.estimatedParamIdxs = Validator.validateType(estimatedParamIdxs, "double");
             else
                 self.estimatedParamIdxs = estimatedParamIdxs;
+            end
+        end
+
+        function set.consideredParams(self, consideredParams)
+            if Settings.VALIDATE_FLAG
+                self.consideredParams = Validator.validateType(consideredParams, "double");
+            else
+                self.consideredParams = consideredParams;
+            end
+
+            self.nConsideredParams = length(consideredParams);
+        end
+
+        function set.consideredParamCovar(self, consideredParamCovar)
+            if Settings.VALIDATE_FLAG
+                consideredParamCovar = Validator.validateType(consideredParamCovar, "double");
+                self.consideredParamCovar = Validator.validateSize(consideredParamCovar, [self.nConsideredParams, self.nConsideredParams]);
+            else
+                self.consideredParamCovar = consideredParamCovar;
+            end
+        end
+
+        function set.consideredParamIdxs(self, consideredParamIdxs)
+            if Settings.VALIDATE_FLAG
+                self.consideredParamIdxs = Validator.validateType(consideredParamIdxs, "double");
+            else
+                self.consideredParamIdxs = consideredParamIdxs;
             end
         end
 

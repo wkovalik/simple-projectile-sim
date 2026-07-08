@@ -6,8 +6,8 @@ classdef Sensor < handle
 
         params = [];
 
-        % considerParams = [];
-        % considerParamCovar = [];
+        consideredParams = [];
+        consideredParamCovar = [];
 
         measNoiseCovar = [];
 
@@ -20,8 +20,8 @@ classdef Sensor < handle
     properties (SetAccess = protected)
         nParams = 0;
         
-        % nConsiderParams = 0;
-        % considerParamIdxs = [];
+        nConsideredParams = 0;
+        consideredParamIdxs = [];
 
         invMeasNoiseCovar = [];
         measNoiseCovarSqrt = [];
@@ -46,11 +46,18 @@ classdef Sensor < handle
 
         function update(self)
             self.updateParams();
+            self.updateConsideredParams();
         end
         
 
         function updateParams(self)
             self.params = [];
+        end
+
+        function updateConsideredParams(self)
+            self.consideredParams = [];
+            self.consideredParamCovar = [];
+            self.consideredParamIdxs = [];
         end
 
         
@@ -132,6 +139,79 @@ classdef Sensor < handle
         end
 
 
+        function H = computeConsideredParamJacobian(self, state)
+            nMeas = self.nMeas;
+            nConsideredProjectileParams = self.projectile.nConsideredParams;
+            nConsideredPlanetParams = self.planet.nConsideredParams;
+            nConsideredParams = nConsideredProjectileParams + nConsideredPlanetParams + self.nConsideredParams;
+
+            H = zeros(nMeas, nConsideredParams);
+            
+            for i = 1:nConsideredProjectileParams
+                paramIdx = self.projectile.consideredParamIdxs(i);
+                param = self.projectile.params(paramIdx);
+
+                delta = Settings.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(param));
+
+                paramPlus = param + delta;
+                self.projectile.params(paramIdx) = paramPlus;
+
+                measurementPlus = self.computeMeasurement(state);
+
+                paramMinus = param - delta;
+                self.projectile.params(paramIdx) = paramMinus;
+
+                measurementMinus = self.computeMeasurement(state);
+
+                H(:, i) = (measurementPlus - measurementMinus) / (2 * delta);
+
+                self.projectile.params(paramIdx) = param;
+            end
+
+            for i = 1:nConsideredPlanetParams
+                paramIdx = self.planet.consideredParamIdxs(i);
+                param = self.planet.params(paramIdx);
+
+                delta = Settings.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(param));
+
+                paramPlus = param + delta;
+                self.planet.params(paramIdx) = paramPlus;
+
+                measurementPlus = self.computeMeasurement(state);
+
+                paramMinus = param - delta;
+                self.planet.params(paramIdx) = paramMinus;
+
+                measurementMinus = self.computeMeasurement(state);
+
+                H(:, nConsideredProjectileParams + i) = (measurementPlus - measurementMinus) / (2 * delta);
+
+                self.planet.params(paramIdx) = param;
+            end
+
+            for i = 1:self.nConsideredParams
+                paramIdx = self.consideredParamIdxs(i);
+                param = self.params(paramIdx);
+
+                delta = Settings.DEFAULT_JACOBIAN_PERT_FACTOR * (1 + abs(param));
+
+                paramPlus = param + delta;
+                self.params(paramIdx) = paramPlus;
+
+                measurementPlus = self.computeMeasurement(state);
+
+                paramMinus = param - delta;
+                self.params(paramIdx) = paramMinus;
+
+                measurementMinus = self.computeMeasurement(state);
+
+                H(:, nConsideredProjectileParams + nConsideredPlanetParams + i) = (measurementPlus - measurementMinus) / (2 * delta);
+
+                self.params(paramIdx) = param;
+            end
+        end
+
+
         % Helper methods ===========================================================================
 
         function isReadyToSample = shouldTakeMeasurement(self, time)
@@ -171,6 +251,16 @@ classdef Sensor < handle
             end
 
             self.nParams = length(params);
+        end
+
+        function set.consideredParams(self, consideredParams)
+            if Settings.VALIDATE_FLAG
+                self.consideredParams = Validator.validateType(consideredParams, "double");
+            else
+                self.consideredParams = consideredParams;
+            end
+
+            self.nConsideredParams = length(consideredParams);
         end
 
         function set.measNoiseCovar(self, measNoiseCovar)

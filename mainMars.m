@@ -4,13 +4,13 @@ rng(0);
 
 % TODO: Set maximum integrator step size!
 
-propagateTruthTrajectory();
+% propagateTruthTrajectory();
 % runEstimator("sqrtsequential");  % "sequential", or "sqrtsequential"
 plotResults();
 
 load("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
 load("./log/sensorLog.mat", "measHistory");
-% load("./log/estimatorLog.mat", "output");
+load("./log/estimatorLog.mat", "output");
 
 
 
@@ -20,21 +20,21 @@ function propagateTruthTrajectory()
     % ----------------------------------------------------------------------------------------------
     
     % Create truth planet
-    earth = Earth();
+    mars = Mars();
 
     % Set planet models
-    earth.atmosphereModel = "exponential";
-    earth.windModel = "table";
-    earth.windModelKernel = "linear";
+    mars.atmosphereModel = "exponential";
+    mars.windModel = "table";
+    mars.windModelKernel = "linear";
 
     % Set planet parameters
-    earth.paramDefs.vWindx.xValues = linspace(0, 4000, 6)';
-    earth.paramDefs.vWindx.yValues = linspace(0, 10, 6)';
+    mars.paramDefs.vWindx.xValues = linspace(0, 15000, 6)';
+    mars.paramDefs.vWindx.yValues = linspace(0, 10, 6)';
     
-    earth.paramDefs.vWindy.xValues = linspace(0, 4000, 6)';
-    earth.paramDefs.vWindy.yValues = linspace(0, -15, 6)';
+    mars.paramDefs.vWindy.xValues = linspace(0, 15000, 6)';
+    mars.paramDefs.vWindy.yValues = linspace(0, -15, 6)';
 
-    earth.update();
+    mars.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -58,7 +58,7 @@ function propagateTruthTrajectory()
     projectile.update();
     
     % Create projectile dynamics
-    projectileDynamics = ProjectileDynamics(projectile, earth);
+    projectileDynamics = ProjectileDynamics(projectile, mars);
 
     % ----------------------------------------------------------------------------------------------
     
@@ -97,7 +97,7 @@ function propagateTruthTrajectory()
     propagator.integrator.stepPeriod = 0.01;
     
     % Propagate truth trajectory (and take measurements along trajectory)
-    propTime = 15;
+    propTime = 60;
     [trueTimeHistory, trueStateHistory, measHistory] = propagator.propagateWithSensors(propTime, { rangeSensor, directionSensor, rollGyroSensor });
     
     save("./log/trueTrajectoryLog.mat", "trueTimeHistory", "trueStateHistory");
@@ -113,29 +113,29 @@ function output = runEstimator(option)
     % ----------------------------------------------------------------------------------------------
 
     % Create planet model
-    earthModel = Earth();
+    marsModel = Mars();
     
     % Set planet models
-    earthModel.atmosphereModel = "exponential";
-    earthModel.windModel = "table";
-    earthModel.windModelKernel = "linear";
+    marsModel.atmosphereModel = "exponential";
+    marsModel.windModel = "table";
+    marsModel.windModelKernel = "linear";
     
     % Set planet parameters and parameter covariances
-    earthModel.paramDefs.H.value = 9000;
-    earthModel.paramDefs.H.covar = 2500 ^ 2;
-    earthModel.paramDefs.H.isEstimated = true;
+    marsModel.paramDefs.H.value = 12500;
+    marsModel.paramDefs.H.covar = 2500 ^ 2;
+    marsModel.paramDefs.H.isEstimated = true;
 
-    earthModel.paramDefs.vWindx.xValues = [0; 2000; 4000];
-    earthModel.paramDefs.vWindx.yValues = [0; 0; 0];
-    earthModel.paramDefs.vWindx.yCovars = [50; 50; 50] .^ 2;
-    earthModel.paramDefs.vWindx.yIsEstimated = [true; true; true];
+    marsModel.paramDefs.vWindx.xValues = [0; 7500; 15000];
+    marsModel.paramDefs.vWindx.yValues = [0; 0; 0];
+    marsModel.paramDefs.vWindx.yCovars = [50; 50; 50] .^ 2;
+    marsModel.paramDefs.vWindx.yIsEstimated = [true; true; true];
     
-    earthModel.paramDefs.vWindy.xValues = [0; 2000; 4000];
-    earthModel.paramDefs.vWindy.yValues = [0; 0; 0];
-    earthModel.paramDefs.vWindy.yCovars = [50; 50; 50] .^ 2;
-    earthModel.paramDefs.vWindy.yIsEstimated = [true; true; true];
+    marsModel.paramDefs.vWindy.xValues = [0; 7500; 15000];
+    marsModel.paramDefs.vWindy.yValues = [0; 0; 0];
+    marsModel.paramDefs.vWindy.yCovars = [50; 50; 50] .^ 2;
+    marsModel.paramDefs.vWindy.yIsEstimated = [true; true; true];
     
-    earthModel.update();
+    marsModel.update();
     
     % ----------------------------------------------------------------------------------------------
     
@@ -163,7 +163,7 @@ function output = runEstimator(option)
     
     projectileModel.update();
     
-    projectileModelDynamics = ProjectileDynamics(projectileModel, earthModel);
+    projectileModelDynamics = ProjectileDynamics(projectileModel, marsModel);
     
     % ----------------------------------------------------------------------------------------------
     

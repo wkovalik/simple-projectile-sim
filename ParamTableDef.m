@@ -4,6 +4,7 @@ classdef ParamTableDef
         yValues = 0;
         yCovars = 0;
         yIsEstimated = false;
+        yIsConsidered = false;
     end
 
     properties (SetAccess = private)
@@ -14,30 +15,41 @@ classdef ParamTableDef
     methods
         % Constructor ==============================================================================
 
-        function obj = ParamTableDef(xValues, yValues, yCovars, yIsEstimated)
-            if nargin == 4
+        function obj = ParamTableDef(xValues, yValues, yCovars, yIsEstimated, yIsConsidered)
+            if nargin == 5
                 obj.xValues = xValues;
                 obj.yValues = yValues;
                 obj.yCovars = yCovars;
                 obj.yIsEstimated = yIsEstimated;
+                obj.yIsConsidered = yIsConsidered;
+
+            elseif nargin == 4
+                obj.xValues = xValues;
+                obj.yValues = yValues;
+                obj.yCovars = yCovars;
+                obj.yIsEstimated = yIsEstimated;
+                obj.yIsConsidered = false(obj.nValues, 1);
             
             elseif nargin == 3
                 obj.xValues = xValues;
                 obj.yValues = yValues;
                 obj.yCovars = yCovars;
                 obj.yIsEstimated = false(obj.nValues, 1);
+                obj.yIsConsidered = false(obj.nValues, 1);
 
             elseif nargin == 2
                 obj.xValues = xValues;
                 obj.yValues = yValues;
                 obj.yCovars = zeros(obj.nValues, 1);
                 obj.yIsEstimated = false(obj.nValues, 1);
+                obj.yIsConsidered = false(obj.nValues, 1);
 
             elseif nargin == 1
                 obj.xValues = xValues;
                 obj.yValues = zeros(obj.nValues, 1);
                 obj.yCovars = zeros(obj.nValues, 1);
                 obj.yIsEstimated = false(obj.nValues, 1);
+                obj.yIsConsidered = false(obj.nValues, 1);
             
             else
                 error("Not enough input arguments. Requires at least xValues.")
@@ -61,6 +73,7 @@ classdef ParamTableDef
                 obj.yValues = zeros(obj.nValues, 1);
                 obj.yCovars = zeros(obj.nValues, 1);
                 obj.yIsEstimated = false(obj.nValues, 1);
+                obj.yIsConsidered = false(obj.nValues, 1);
             end
         end
 
@@ -88,6 +101,15 @@ classdef ParamTableDef
                 obj.yIsEstimated = Validator.validateSize(yIsEstimated, [obj.nValues, 1]);
             else
                 obj.yIsEstimated = yIsEstimated;
+            end
+        end
+
+        function obj = set.yIsConsidered(obj, yIsConsidered)
+            if Settings.VALIDATE_FLAG
+                yIsConsidered = Validator.validateType(yIsConsidered, "logical");
+                obj.yIsConsidered = Validator.validateSize(yIsConsidered, [obj.nValues, 1]);
+            else
+                obj.yIsConsidered = yIsConsidered;
             end
         end
     end

@@ -9,9 +9,13 @@ classdef Planet < handle
         estimatedParams = [];
         estimatedParamCovar = [];
 
+        consideredParams = [];
+        consideredParamCovar = [];
+
         gravityModel
         atmosphereModel
         windModel
+        windModelKernel
     end
 
     properties (SetAccess = protected)
@@ -20,11 +24,19 @@ classdef Planet < handle
         nEstimatedParams = 0;
         estimatedParamIdxs = [];
 
+        nConsideredParams = 0;
+        consideredParamIdxs = [];
+
         gIdx = 0;
         
         rhoIdx = 0;
-        aIdx = 0;
         rho0Idx = 0;
+        rhoTable_h0Idx = 0;
+        rhoTable_rho0Idx = 0;
+        rhoTable_Len = 0;
+
+        aIdx = 0;
+        
         HIdx = 0;
         
         vWindxIdx = 0;
@@ -44,12 +56,17 @@ classdef Planet < handle
         computeGravity
         computeAtmosphere
         computeWind
+
+        windModelKernelID
     end
 
     properties (Constant)
         VALID_GRAVITY_MODELS = ["constant"];
-        VALID_ATMOSPHERE_MODELS = ["constant", "exponential"];  % TODO: "table"
+        VALID_ATMOSPHERE_MODELS = ["constant", "exponential", "table"];
         VALID_WIND_MODELS = ["constant", "table"];
+        VALID_WIND_MODEL_KERNELS = ["constant", "linear"];
+
+        DEFAULT_WIND_MODEL_KERNEL = "linear";
     end
 
     properties (Constant, Abstract)
@@ -57,10 +74,14 @@ classdef Planet < handle
         
         DEFAULT_RHO
         DEFAULT_RHO0
-        DEFAULT_H
+        DEFAULT_RHO_TABLE_X
+        DEFAULT_RHO_TABLE_Y
+
         % DEFAULT_R
         % DEFAULT_T
         DEFAULT_A  % TODO: Compute using R and T as params instead
+        
+        DEFAULT_H
 
         DEFAULT_VWINDX
         DEFAULT_VWINDX_TABLE_X
@@ -109,6 +130,7 @@ classdef Planet < handle
             self.updateModels();
             self.updateParams();
             self.updateEstimatedParams();
+            self.updateConsideredParams();
         end
 
 
@@ -155,6 +177,14 @@ classdef Planet < handle
                         self.paramDefs.a = ParamDef(self.DEFAULT_A);
                     end
 
+                case "table"
+                    self.computeAtmosphere = @self.tableAtmosphereModel;
+                    
+                    if ~self.isAtmosphereModelInit
+                        self.paramDefs.rho = ParamTableDef(self.DEFAULT_RHO_TABLE_X, self.DEFAULT_RHO_TABLE_Y);
+                        self.paramDefs.a = ParamDef(self.DEFAULT_A);
+                    end
+
                 otherwise
                     error("Invalid atmosphere model: %s.", self.atmosphereModel)
             end
@@ -179,6 +209,9 @@ classdef Planet < handle
                     if ~self.isWindModelInit
                         self.paramDefs.vWindx = ParamTableDef(self.DEFAULT_VWINDX_TABLE_X, self.DEFAULT_VWINDX_TABLE_Y);
                         self.paramDefs.vWindy = ParamTableDef(self.DEFAULT_VWINDY_TABLE_X, self.DEFAULT_VWINDY_TABLE_Y);
+
+                        self.windModelKernel = self.DEFAULT_WIND_MODEL_KERNEL;
+                        self.updateWindModelKernelID();
                     end
 
                 otherwise
@@ -186,6 +219,20 @@ classdef Planet < handle
             end
             
             self.isWindModelInit = true;
+        end
+
+
+        function updateWindModelKernelID(self)
+            switch self.windModelKernel
+                case "constant"
+                    self.windModelKernelID = 1;
+
+                case "linear"
+                    self.windModelKernelID = 2;
+                    
+                otherwise
+                    error("Invalid wind model kernel: %s.", self.windModelKernel)
+            end
         end
 
 
@@ -197,9 +244,14 @@ classdef Planet < handle
             self.gIdx = 0;
         
             self.rhoIdx = 0;
-            self.aIdx = 0;
             self.rho0Idx = 0;
+            self.rhoTable_h0Idx = 0;
+            self.rhoTable_rho0Idx = 0;
+            self.rhoTable_Len = 0;
+            
             self.HIdx = 0;
+
+            self.aIdx = 0;
             
             self.vWindxIdx = 0;
             self.vWindxTable_h0Idx = 0;
@@ -240,6 +292,20 @@ classdef Planet < handle
                     self.HIdx = self.nParams + 1;
                     self.params = [self.params; self.paramDefs.H.value];
                     
+                    % a
+                    self.aIdx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.a.value];
+
+                case "table"
+                    % rho
+                    self.rhoTable_h0Idx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.rho.xValues];
+                    
+                    self.rhoTable_rho0Idx = self.nParams + 1;
+                    self.params = [self.params; self.paramDefs.rho.yValues];
+
+                    self.rhoTable_Len = self.paramDefs.rho.nValues;
+
                     % a
                     self.aIdx = self.nParams + 1;
                     self.params = [self.params; self.paramDefs.a.value];
@@ -338,6 +404,23 @@ classdef Planet < handle
                         self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.a.covar);
                         self.estimatedParamIdxs = [self.estimatedParamIdxs; self.aIdx];
                     end
+
+                case "table"
+                    % rho
+                    for i = 1:length(self.paramDefs.rho.yValues)
+                        if self.paramDefs.rho.yIsEstimated(i)
+                            self.estimatedParams = [self.estimatedParams; self.paramDefs.rho.yValues(i)];
+                            self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.rho.yCovars(i));
+                            self.estimatedParamIdxs = [self.estimatedParamIdxs; self.rhoTable_rho0Idx + (i - 1)];
+                        end
+                    end
+
+                    % a
+                    if self.paramDefs.a.isEstimated
+                        self.estimatedParams = [self.estimatedParams; self.paramDefs.a.value];
+                        self.estimatedParamCovar = blkdiag(self.estimatedParamCovar, self.paramDefs.a.covar);
+                        self.estimatedParamIdxs = [self.estimatedParamIdxs; self.aIdx];
+                    end
                 
                 otherwise
                     error("Invalid atmosphere model: %s.", self.atmosphereModel)
@@ -383,6 +466,175 @@ classdef Planet < handle
             end
         end
 
+
+        function updateConsideredParams(self)
+            self.consideredParams = [];
+            self.consideredParamCovar = [];
+            self.consideredParamIdxs = [];
+
+            switch self.gravityModel
+                % g
+                case "constant"
+                    if self.paramDefs.g.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.g.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.g.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.gIdx];
+                    end
+                
+                otherwise
+                    error("Invalid gravity model: %s.", self.gravityModel)
+            end
+
+            switch self.atmosphereModel
+                case "constant"
+                    % rho
+                    if self.paramDefs.rho.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.rho.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.rho.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.rhoIdx];
+                    end
+                    
+                    % a
+                    if self.paramDefs.a.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.a.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.a.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.aIdx];
+                    end
+                
+                case "exponential"
+                    % rho0
+                    if self.paramDefs.rho0.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.rho0.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.rho0.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.rho0Idx];
+                    end
+                    
+                    % H
+                    if self.paramDefs.H.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.H.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.H.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.HIdx];
+                    end
+                    
+                    % a
+                    if self.paramDefs.a.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.a.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.a.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.aIdx];
+                    end
+
+                case "table"
+                    % rho
+                    for i = 1:length(self.paramDefs.rho.yValues)
+                        if self.paramDefs.rho.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.rho.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.rho.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.rhoTable_rho0Idx + (i - 1)];
+                        end
+                    end
+
+                    % a
+                    if self.paramDefs.a.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.a.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.a.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.aIdx];
+                    end
+                
+                otherwise
+                    error("Invalid atmosphere model: %s.", self.atmosphereModel)
+            end
+
+            switch self.windModel
+                case "constant"
+                    % vWindx
+                    if self.paramDefs.vWindx.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.vWindx.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.vWindx.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.vWindxIdx];
+                    end
+                    
+                    % vWindy
+                    if self.paramDefs.vWindy.isConsidered
+                        self.consideredParams = [self.consideredParams; self.paramDefs.vWindy.value];
+                        self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.vWindy.covar);
+                        self.consideredParamIdxs = [self.consideredParamIdxs; self.vWindyIdx];
+                    end
+
+                case "table"
+                    % vWindx
+                    for i = 1:length(self.paramDefs.vWindx.yValues)
+                        if self.paramDefs.vWindx.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.vWindx.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.vWindx.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.vWindxTable_vWindx0Idx + (i - 1)];
+                        end
+                    end
+                    
+                    % vWindy
+                    for i = 1:length(self.paramDefs.vWindy.yValues)
+                        if self.paramDefs.vWindy.yIsConsidered(i)
+                            self.consideredParams = [self.consideredParams; self.paramDefs.vWindy.yValues(i)];
+                            self.consideredParamCovar = blkdiag(self.consideredParamCovar, self.paramDefs.vWindy.yCovars(i));
+                            self.consideredParamIdxs = [self.consideredParamIdxs; self.vWindyTable_vWindy0Idx + (i - 1)];
+                        end
+                    end
+
+                otherwise
+                    error("Invalid wind model: %s.", self.windModel)
+            end
+        end
+
+
+        function readDensityTableFromFile(self, filePath, usePerturbedValues)
+            if nargin < 3
+                usePerturbedValues = false;
+            end
+
+            try
+                atmTable = readmatrix(filePath);
+            catch
+                error("Cannot read atmosphere table CSV file. File either does not exist or is not formatted properly.")
+            end
+
+            hValues = atmTable(:, 2);
+            hValues = hValues * 1E+03;  % (km) to (m)
+
+            if ~usePerturbedValues
+                rhoValues    =  atmTable(:, 10);
+            else
+                rhoValues    =  atmTable(:, 23);
+            end
+
+            self.paramDefs.rho    = ParamTableDef(hValues, rhoValues);
+        end
+
+
+        function readWindTablesFromFile(self, filePath, usePerturbedValues)
+            if nargin < 3
+                usePerturbedValues = false;
+            end
+
+            try
+                atmTable = readmatrix(filePath);
+            catch
+                error("Cannot read atmosphere table CSV file. File either does not exist or is not formatted properly.")
+            end
+
+            hValues = atmTable(:, 2);
+            hValues = hValues * 1E+03;  % (km) to (m)
+
+            if ~usePerturbedValues
+                vWindxValues =  atmTable(:, 32);   % Assume x-axis aligned due East (so East wind is positive)
+                vWindyValues = -atmTable(:, 33);   % Assume y-axis aligned due South (so North wind is negative)
+            else
+                vWindxValues =  atmTable(:, 38);
+                vWindyValues = -atmTable(:, 39);
+            end
+
+            self.paramDefs.vWindx = ParamTableDef(hValues, vWindxValues);
+            self.paramDefs.vWindy = ParamTableDef(hValues, vWindyValues);
+        end
+
         
         % Model methods ============================================================================
 
@@ -405,6 +657,23 @@ classdef Planet < handle
             rho = rho0 * exp(-h / H);
         end
 
+        function [rho, a] = tableAtmosphereModel(self, h)
+            a = self.params(self.aIdx);
+
+            % TODO: Non-uniform table
+            dh = self.params(self.rhoTable_h0Idx + 1) - self.params(self.rhoTable_h0Idx);
+
+            rho = 0;
+            for i = 0:(self.rhoTable_Len - 1)
+                h_i = self.params(self.rhoTable_h0Idx + i);
+                normalized_dh_i = (h - h_i) / dh;
+
+                rho_i = self.params(self.rhoTable_rho0Idx + i);
+
+                rho = rho + rho_i * self.linearKernel(normalized_dh_i);
+            end
+        end
+
 
         function [vWindx, vWindy] = constantWindModel(self, ~)
             vWindx = self.params(self.vWindxIdx);
@@ -413,35 +682,46 @@ classdef Planet < handle
 
 
         function [vWindx, vWindy] = tableWindModel(self, h)
-            dh = self.params(self.vWindxTable_h0Idx + 1) - self.params(self.vWindxTable_h0Idx);
+            % TODO: Non-uniform table
+            dh = self.params(self.vWindxTable_h0Idx + 1) - self.params(self.vWindxTable_h0Idx);  % Using vWindx table since entire table uses same height points
 
             vWindx = 0;
-            for i = 0:(self.vWindxTable_Len - 1)
-                h_i = self.params(self.vWindxTable_h0Idx + i);
-                vWindx_i = self.params(self.vWindxTable_vWindx0Idx + i);
-
-                vWindx = vWindx + vWindx_i * self.linearKernel(h - h_i, dh);
-            end
-
-            dh = self.params(self.vWindyTable_h0Idx + 1) - self.params(self.vWindyTable_h0Idx);
-
             vWindy = 0;
-            for i = 0:(self.vWindxTable_Len - 1)
-                h_i = self.params(self.vWindyTable_h0Idx + i);
+
+            for i = 0:(self.vWindxTable_Len - 1)  % Using vWindx table since entire table uses same height points
+                h_i = self.params(self.vWindxTable_h0Idx + i);
+                normalized_dh_i = (h - h_i) / dh;
+
+                vWindx_i = self.params(self.vWindxTable_vWindx0Idx + i);
                 vWindy_i = self.params(self.vWindyTable_vWindy0Idx + i);
 
-                vWindy = vWindy + vWindy_i * self.linearKernel(h - h_i, dh);
+                if self.windModelKernelID == 1
+                    vWindx = vWindx + vWindx_i * self.constantKernel(normalized_dh_i);
+                    vWindy = vWindy + vWindy_i * self.constantKernel(normalized_dh_i);
+                
+                elseif self.windModelKernelID == 2
+                    vWindx = vWindx + vWindx_i * self.linearKernel(normalized_dh_i);
+                    vWindy = vWindy + vWindy_i * self.linearKernel(normalized_dh_i);
+
+                end
             end
         end
 
 
-        function k = linearKernel(~, x, dx)
-            xx = x / dx;
+        function k = constantKernel(~, x)
+            if (-0.5 <= x) && (x < 0.5)
+                k = 1;
+            else
+                k = 0;
+            end
+        end
 
-            if (-1 < xx) && (xx < 0)
-                k = 1 + xx;
-            elseif (0 <= xx) && (xx < 1)
-                k = 1 - xx;
+
+        function k = linearKernel(~, x)
+            if (-1 < x) && (x < 0)
+                k = 1 + x;
+            elseif (0 <= x) && (x < 1)
+                k = 1 - x;
             else
                 k = 0;
             end
@@ -495,6 +775,33 @@ classdef Planet < handle
             end
         end
 
+        function set.consideredParams(self, consideredParams)
+            if Settings.VALIDATE_FLAG
+                self.consideredParams = Validator.validateType(consideredParams, "double");
+            else
+                self.consideredParams = consideredParams;
+            end
+
+            self.nConsideredParams = length(consideredParams);
+        end
+
+        function set.consideredParamCovar(self, consideredParamCovar)
+            if Settings.VALIDATE_FLAG
+                consideredParamCovar = Validator.validateType(consideredParamCovar, "double");
+                self.consideredParamCovar = Validator.validateSize(consideredParamCovar, [self.nConsideredParams, self.nConsideredParams]);
+            else
+                self.consideredParamCovar = consideredParamCovar;
+            end
+        end
+
+        function set.consideredParamIdxs(self, consideredParamIdxs)
+            if Settings.VALIDATE_FLAG
+                self.consideredParamIdxs = Validator.validateType(consideredParamIdxs, "double");
+            else
+                self.consideredParamIdxs = consideredParamIdxs;
+            end
+        end
+
         function set.gravityModel(self, gravityModel)
             if Settings.VALIDATE_FLAG
                 self.gravityModel = Validator.validateString(gravityModel, self.VALID_GRAVITY_MODELS);
@@ -526,6 +833,16 @@ classdef Planet < handle
 
             self.isWindModelInit = false;
             self.updateWindModel();
+        end
+
+        function set.windModelKernel(self, windModelKernel)
+            if Settings.VALIDATE_FLAG
+                self.windModelKernel = Validator.validateString(windModelKernel, self.VALID_WIND_MODEL_KERNELS);
+            else
+                self.windModelKernel = windModelKernel;
+            end
+
+            self.updateWindModelKernelID();
         end
 
         function set.computeGravity(self, gravityModelFn)
